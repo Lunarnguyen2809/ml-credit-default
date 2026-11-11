@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Tạo label, milestone và 30 issue cho repo. Chạy MỘT LẦN, từ thư mục gốc của repo:
+# Tạo label, milestone và 30 issue cho repo. Chạy từ thư mục gốc của repo:
 #   gh auth login            (nếu chưa đăng nhập)
 #   bash scripts/create_issues.sh
-# Chạy lần 2 sẽ tạo issue trùng – đừng chạy lại.
+# Chạy lại an toàn: label, milestone, issue nào đã có (trùng tên) thì bỏ qua.
 set -euo pipefail
 
 REPO="Lunarnguyen2809/ml-credit-default"
 
-# ---------- Labels ----------
+echo "Đang tạo label..."
 for l in setup admin preprocess eda infra reduce model experiment docs cluster eval extension; do
   gh label create "$l" --repo "$REPO" --force >/dev/null
 done
@@ -21,13 +21,31 @@ M4="Đợt 4 – Tài liệu giữa kỳ"
 M5="Đợt 5 – Hoàn thiện phần bắt buộc"
 M6="Đợt 6 – Mở rộng (tùy chọn)"
 M7="Đợt 7 – Nộp cuối kỳ"
-for m in "$M0" "$M1" "$M2" "$M3" "$M5" "$M6" "$M7"; do
-  gh api "repos/$REPO/milestones" -f title="$m" >/dev/null
-done
-gh api "repos/$REPO/milestones" -f title="$M4" -f due_on="2026-12-01T16:59:59Z" >/dev/null
+
+echo "Đang tạo milestone..."
+EXISTING_MS=$(gh api "repos/$REPO/milestones?state=all&per_page=100" --jq '.[].title')
+milestone() {  # milestone <tên> [hạn]
+  if grep -Fxq "$1" <<<"$EXISTING_MS"; then
+    echo "  = đã có: $1"
+  elif [ -n "${2:-}" ]; then
+    gh api "repos/$REPO/milestones" -f title="$1" -f due_on="$2" >/dev/null && echo "  + $1"
+  else
+    gh api "repos/$REPO/milestones" -f title="$1" >/dev/null && echo "  + $1"
+  fi
+}
+milestone "$M0"; milestone "$M1"; milestone "$M2"; milestone "$M3"
+milestone "$M4" "2026-12-01T16:59:59Z"
+milestone "$M5"; milestone "$M6"; milestone "$M7"
+
+EXISTING_ISSUES=$(gh api "repos/$REPO/issues?state=all&per_page=100" --jq '.[] | select(.pull_request == null) | .title')
 
 # issue <tiêu đề> <labels> <milestone>   (nội dung đọc từ stdin)
 issue() {
+  if grep -Fxq "$1" <<<"$EXISTING_ISSUES"; then
+    cat >/dev/null
+    echo "  = đã có: $1"
+    return
+  fi
   gh issue create --repo "$REPO" --title "$1" --label "$2" --milestone "$3" --body-file - >/dev/null
   echo "  + $1"
 }
@@ -223,4 +241,4 @@ issue "Rà soát cuối" docs "$M7" <<'EOF'
 - [ ] Mở quyền chia sẻ link
 EOF
 
-echo "Xong: 30 issue."
+echo "Xong. Kiểm tra tab Issues trên GitHub: phải có đủ 30 issue."
