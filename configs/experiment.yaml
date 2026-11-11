@@ -1,0 +1,35 @@
+# Cấu hình dùng chung cho mọi thí nghiệm. Sửa ở đây, không hard-code trong notebook.
+
+seeds: [0, 1, 2, 3, 4]
+
+# tên tỉ lệ -> phần validation
+splits:
+  "8:2": 0.2
+  "7:3": 0.3
+  "6:4": 0.4
+
+target: default
+n_components_reduced: 11      # 1/3 của 33 chiều sau mã hóa
+cv_folds: 5
+cv_scoring: average_precision # PR-AUC
+
+# Phương án tăng cường dữ liệu (K2)
+balancing: [B0_none, B1_class_weight, B2_smotenc]
+
+grids:
+  naive_bayes:
+    var_smoothing: [1.0e-9, 1.0e-7, 1.0e-5, 1.0e-3, 1.0e-1]
+  logistic:
+    C: [0.001, 0.01, 0.1, 1, 10, 100]
+    penalty: [l1, l2]
+  svm_rbf:
+    C: [0.1, 1, 10]
+    gamma: [scale, 0.01, 0.1]
+    grid_subsample: 10000       # dò lưới trên mẫu con phân tầng
+
+score_regression:
+  ridge_alpha: [0.01, 0.1, 1, 10, 100]
+  knn_k: [5, 10, 20, 50]
+
+clustering:
+  k_range: [2, 10]

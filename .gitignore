@@ -1,0 +1,15 @@
+# Dữ liệu – đề cấm gửi kèm dữ liệu
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Hệ điều hành / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
