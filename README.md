@@ -40,6 +40,7 @@ Yêu cầu Python 3.10 trở lên.
 
 ```text
 configs/experiment.yaml   seed, tỉ lệ chia, lưới siêu tham số – mọi thí nghiệm đọc từ đây
+docs/                     kế hoạch và tài liệu (docs/plan.md)
 data/                     dữ liệu (không đưa lên git)
   raw/                    file gốc tải từ UCI
   splits/                 index train/validation đã chia (sinh bởi src/preprocess.py)
@@ -66,7 +67,7 @@ Ghi chú về số mục:
 - "mục 2.3, 2.4(a)/(b)/(c)" trong README này, `src/score_reg.py`,
   `src/metrics.py` (chỗ ghi 2.4(c)) và tiêu đề issue theo đánh số của **ĐỀ BÀI**.
 - "mục 2.1, 2.2, 2.5, 4.x, 5, 6.x, 7.x" trong docstring của code và
-  issue theo **KẾ HOẠCH** của nhóm (Google Doc, không có trong repo).
+  issue theo **KẾ HOẠCH** của nhóm (xem `docs/plan.md`).
 
 ## 4. Kịch bản thí nghiệm
 
