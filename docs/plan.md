@@ -8,6 +8,7 @@
 >   - (b) Mục 4.5 và 6.3 nói "test", nhưng dự án chỉ có train/validation; code (`src/score_reg.py`) dùng validation.
 >   - (c) Repo có thêm file ngoài cây thư mục ở mục 7.4: `src/config.py`, `src/data.py`, `src/eda.py`, `src/metrics.py`, `scripts/create_issues.sh`, `requirements.txt`.
 >   - (d) Sơ đồ mục 3 gốc ghi 29 chiều / 10 chiều (trước khi thêm 4 đặc trưng dẫn xuất); bản vẽ lại dùng 33 / 11 theo mục 4.1.
+>   - (e) Mục 7.1 đã cập nhật trong repo (phân công theo issue, mô-đun 2 tầng tách riêng do synaamin làm, tùy chọn); Google Doc chưa sửa.
 > - Hai sơ đồ (mục 3 và mục 5) bị mất khi xuất Google Doc; đã vẽ lại bằng mermaid từ hình gốc.
 
 ## 1. Tóm tắt đề tài
@@ -340,12 +341,16 @@ Mỗi thành viên sở hữu trọn một họ mô hình từ đầu đến cu�
 
 ### 7.1. Phân công
 
-| Thành viên | Mô hình sở hữu | Phần phụ trách thêm | Trong mô-đun 2 tầng |
+| Thành viên | GitHub | Mô hình sở hữu | Issue |
 | :-: | :-: | :-: | :-: |
-| TV1 | Gaussian Naïve Bayes | Giảm chiều PCA, FAMD (4.2); phân cụm GMM, K-Means (4.3) | GMM tầng 1, M4 với Naïve Bayes |
-| TV2 | Logistic Regression | Hồi quy trên score 2.4(c) (4.5); cổng kiểm tra tương tác | M1, M2, kiểm định likelihood ratio |
-| TV3 | SVM RBF | Calibration và phân tích lỗi 2.4(b); đánh giá công bằng (6.4) | M4 với SVM, M4′ |
-| Cả nhóm | — | Pipeline tiền xử lý (4.1), results.csv, báo cáo, slide | Tổng hợp kết luận RQ3 |
+| TV1 | QuynhRua | Gaussian Naïve Bayes | #3 đọc dữ liệu, #4 làm sạch, #8 EDA, #10 PCA, #11 FAMD, #13 Naive Bayes, #21 phân cụm |
+| TV2 | synaamin | Logistic Regression | #5 đặc trưng dẫn xuất, #6 chia dữ liệu, #9 metric và results.csv, #12 so sánh PCA–FAMD và t-SNE, #14 Logistic, #15 B0/B1/B2, #23 hồi quy trên score |
+| TV3 | Lunarnguyen2809 | SVM RBF | #7 pipeline mã hóa/log/scale, #16 có/không đặc trưng dẫn xuất, #20 SVM, #22 mục 2.4(b), #24 phân loại đối chứng FAMD, #25 đánh giá công bằng |
+| Cả nhóm | — | — | #2, #17–#19, #28–#30: tài liệu; ai làm phần nào viết mục đó trong báo cáo |
+
+**Mô-đun mở rộng 2 tầng (mục 5)** – #26, #27 (label `optional`): synaamin làm riêng, ngoài phần chia đều; có thể không đưa vào báo cáo nếu không kịp hoặc không qua cổng kiểm tra.
+
+Phụ thuộc giữa người: #12 cần #10, #11 xong; #24 cần #11; #7 cần #4, #5.
 
 ### 7.2. Tiến độ
 
