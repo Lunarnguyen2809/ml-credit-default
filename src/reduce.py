@@ -19,3 +19,8 @@ def plot_pairwise(Z, y, n_components, path):
 def plot_loadings(model, feature_names, n_components, path):
     """Loadings của 2–3 thành phần đầu."""
     raise NotImplementedError
+
+
+def plot_tsne(X, y, path, seed=0):
+    """TODO(#12): t-SNE 2 chiều chỉ để trực quan hóa, không dùng làm đầu vào mô hình."""
+    raise NotImplementedError

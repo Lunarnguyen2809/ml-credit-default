@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Tạo label, milestone và 30 issue cho repo. Chạy từ thư mục gốc của repo:
-#   gh auth login            (nếu chưa đăng nhập)
+#   Cần GitHub CLI `gh` đã đăng nhập: gh auth login
 #   bash scripts/create_issues.sh
 # Chạy lại an toàn: label, milestone, issue nào đã có (trùng tên) thì bỏ qua.
 set -euo pipefail
@@ -56,7 +56,7 @@ echo "Đang tạo issue..."
 issue "Khởi tạo repo" setup "$M0" <<'EOF'
 - [ ] Cấu trúc thư mục theo mục 7.4 của kế hoạch
 - [ ] requirements.txt, .gitignore chặn data/
-- [ ] Khung README.txt
+- [ ] Khung README.md
 EOF
 
 issue "Xác nhận đăng ký đề tài" admin "$M0" <<'EOF'
@@ -168,7 +168,7 @@ issue "Slide giữa kỳ" docs "$M4" <<'EOF'
 EOF
 
 issue "README và kiểm tra tái lập" docs "$M4" <<'EOF'
-- [ ] README.txt: link dữ liệu, cách tổ chức, kịch bản thí nghiệm
+- [ ] README.md: link dữ liệu, cách tổ chức, kịch bản thí nghiệm
 - [ ] Clone về máy sạch và chạy lại từ đầu
 - [ ] Kiểm tra quyền chia sẻ link
 EOF
