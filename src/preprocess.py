@@ -21,7 +21,31 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     - MARRIAGE: gộp 0 vào 3 ("khác")
     - loại bản ghi trùng hoàn toàn; in ra số dòng bị loại
     """
-    raise NotImplementedError
+    out = df.copy()
+    
+    # Đổi tên PAY_0 thành PAY_1 nếu tồn tại và loại bỏ ID nếu có
+    if "PAY_0" in out.columns:
+        out = out.rename(columns={"PAY_0": "PAY_1"})
+    if "ID" in out.columns:
+        out = out.drop(columns=["ID"])
+
+    # Xử lý EDUCATION (gộp 0, 5, 6 vào 4)
+    edu_mask = out["EDUCATION"].isin([0, 5, 6])
+    print(f"Số mẫu EDUCATION bị gộp (0, 5, 6 -> 4): {edu_mask.sum()}")
+    out.loc[edu_mask, "EDUCATION"] = 4
+
+    # Xử lý MARRIAGE (gộp 0 vào 3)
+    mar_mask = out["MARRIAGE"] == 0
+    print(f"Số mẫu MARRIAGE bị gộp (0 -> 3): {mar_mask.sum()}")
+    out.loc[mar_mask, "MARRIAGE"] = 3
+
+    # Loại bỏ bản ghi trùng lặp hoàn toàn
+    n_before = len(out)
+    out = out.drop_duplicates()
+    n_dropped = n_before - len(out)
+    print(f"Số dòng trùng lặp bị loại bỏ: {n_dropped}")
+
+    return out
 
 
 def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -122,4 +146,29 @@ def build_preprocessor(use_derived: bool = True):
 
     TODO(#7). Gói vào imblearn.pipeline.Pipeline để có thể chèn SMOTENC ở bước sau.
     """
-    raise NotImplementedError
+    cat_cols = ["SEX", "EDUCATION", "MARRIAGE"]
+    log_cols = [
+        "LIMIT_BAL",
+        "BILL_AMT1", "BILL_AMT2", "BILL_AMT3", "BILL_AMT4", "BILL_AMT5", "BILL_AMT6",
+        "PAY_AMT1", "PAY_AMT2", "PAY_AMT3", "PAY_AMT4", "PAY_AMT5", "PAY_AMT6"
+    ]
+    passthrough_cols = ["AGE"] + list(PAY_STATUS)
+
+    if use_derived:
+        passthrough_cols = passthrough_cols + list(DERIVED_COLS)
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), cat_cols),
+            ("log", FunctionTransformer(signed_log, validate=False), log_cols),
+            ("pass", "passthrough", passthrough_cols),
+        ]
+    )
+
+    # Gói vào imblearn Pipeline kèm StandardScaler ở cuối
+    pipeline = Pipeline([
+        ("preprocessor", preprocessor),
+        ("scaler", StandardScaler())
+    ])
+    
+    return pipeline
