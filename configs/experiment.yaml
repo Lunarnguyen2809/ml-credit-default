@@ -9,6 +9,10 @@ splits:
   "6:4": 0.4
 
 target: default
+# bật/tắt 4 đặc trưng dẫn xuất (mục 2.5); build_preprocessor(use_derived) đọc cờ này.
+# K3 ở tỉ lệ 7:3 chạy false (29 chiều); mọi kịch bản khác để true (33 chiều)
+use_derived: true
+
 n_components_reduced: 11      # 1/3 của 33 chiều (29 sau mã hóa + 4 dẫn xuất)
 cv_folds: 5
 cv_scoring: average_precision # PR-AUC
