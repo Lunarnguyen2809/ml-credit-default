@@ -35,14 +35,15 @@ EDU_NAMES = {1: "Sau ĐH", 2: "Đại học", 3: "THPT", 4: "Khác"}
 MAR_NAMES = {1: "Có gia đình", 2: "Độc thân", 3: "Khác"}
 
 _DPI = 120
-_COLORS = {0: "#4c78a8", 1: "#e45756"}  # 0 = không vỡ nợ, 1 = vỡ nợ
+COLORS = {0: "#4c78a8", 1: "#e45756"}  # 0 = không vỡ nợ, 1 = vỡ nợ
 
 
-def _save(fig, path) -> Path:
+def save_fig(fig, path, dpi: int | None = None) -> Path:
+    """Lưu figure ra PNG (tạo thư mục nếu cần, tight_layout), đóng figure, trả về đường dẫn. `dpi` mặc định `_DPI`."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
-    fig.savefig(path, dpi=_DPI)
+    fig.savefig(path, dpi=dpi or _DPI)
     plt.close(fig)
     return path
 
@@ -96,13 +97,13 @@ def plot_correlation_heatmap(df: pd.DataFrame, path=FIG_DIR / "correlation_heatm
     sns.heatmap(corr, cmap="RdBu_r", vmin=-1, vmax=1, center=0, square=True,
                 linewidths=0.3, cbar_kws={"shrink": 0.7}, ax=ax)
     ax.set_title("Tương quan Pearson giữa các cột số")
-    return _save(fig, path)
+    return save_fig(fig, path)
 
 
 def _bar_rate(ax, tab: pd.DataFrame, labels, title, xlabel, overall: float):
     """Cột tỉ lệ vỡ nợ, ghi số mẫu (n) trên mỗi cột và vẽ đường tỉ lệ chung."""
     x = np.arange(len(tab))
-    ax.bar(x, tab["default_rate"], color=_COLORS[1], alpha=0.85)
+    ax.bar(x, tab["default_rate"], color=COLORS[1], alpha=0.85)
     for xi, r, n in zip(x, tab["default_rate"], tab["count"]):
         ax.text(xi, r, f"{r:.1%}\nn={n}", ha="center", va="bottom", fontsize=7, zorder=3,
                 bbox=dict(facecolor="white", edgecolor="none", alpha=0.75, pad=0.5))
@@ -123,7 +124,7 @@ def plot_default_rate_pay1(df: pd.DataFrame, path=FIG_DIR / "default_rate_by_pay
     _bar_rate(ax, tab, tab.index.tolist(), "Tỉ lệ vỡ nợ theo PAY_1 (tháng 9/2005)",
               "PAY_1 (-2: không dùng, -1: trả đủ, 0: dư nợ quay vòng, k: trễ k tháng)",
               df[TARGET].mean())
-    return _save(fig, path)
+    return save_fig(fig, path)
 
 
 def plot_default_rate_limit(df: pd.DataFrame, path=FIG_DIR / "default_rate_by_limit_bal.png") -> Path:
@@ -133,7 +134,7 @@ def plot_default_rate_limit(df: pd.DataFrame, path=FIG_DIR / "default_rate_by_li
     fig, ax = plt.subplots(figsize=(9, 4.5))
     _bar_rate(ax, tab, labels, "Tỉ lệ vỡ nợ theo khoảng LIMIT_BAL",
               "LIMIT_BAL (NT$, khoảng mở trái đóng phải)", df[TARGET].mean())
-    return _save(fig, path)
+    return save_fig(fig, path)
 
 
 def plot_default_rate_demographics(df: pd.DataFrame, path=FIG_DIR / "default_rate_by_demographics.png") -> Path:
@@ -154,7 +155,7 @@ def plot_default_rate_demographics(df: pd.DataFrame, path=FIG_DIR / "default_rat
         _bar_rate(ax, tab, [names[i] for i in tab.index], title, col, overall)
 
     fig.suptitle("Tỉ lệ vỡ nợ theo hồ sơ nhân khẩu học")
-    return _save(fig, path)
+    return save_fig(fig, path)
 
 
 def monthly_means(df: pd.DataFrame, prefix: str, target: str = TARGET) -> pd.DataFrame:
@@ -176,12 +177,12 @@ def plot_monthly_trend(df: pd.DataFrame, path=FIG_DIR / "monthly_trend.png") -> 
                               (axes[1], "PAY_AMT", "Số tiền đã trả (PAY_AMT)")):
         m = monthly_means(df, prefix)
         for lab, name in ((0, "Không vỡ nợ"), (1, "Vỡ nợ")):
-            ax.plot(m.index, m[lab], marker="o", color=_COLORS[lab], label=name)
+            ax.plot(m.index, m[lab], marker="o", color=COLORS[lab], label=name)
         ax.set_title(f"Trung bình {title} theo tháng")
         ax.set_xlabel("Tháng (2005)")
         ax.set_ylabel("NT$")
         ax.legend()
-    return _save(fig, path)
+    return save_fig(fig, path)
 
 
 def plot_label_distribution(df: pd.DataFrame, path=FIG_DIR / "label_distribution.png") -> Path:
@@ -189,13 +190,13 @@ def plot_label_distribution(df: pd.DataFrame, path=FIG_DIR / "label_distribution
     counts = df[TARGET].value_counts().sort_index()
     fig, ax = plt.subplots(figsize=(5, 4))
     ax.bar(["0: không vỡ nợ", "1: vỡ nợ"], counts.values,
-           color=[_COLORS[0], _COLORS[1]])
+           color=[COLORS[0], COLORS[1]])
     for i, c in enumerate(counts.values):
         ax.text(i, c, f"{c}\n({c / counts.sum():.1%})", ha="center", va="bottom")
     ax.set_ylim(0, counts.max() * 1.15)
     ax.set_ylabel("Số mẫu")
     ax.set_title("Phân phối nhãn")
-    return _save(fig, path)
+    return save_fig(fig, path)
 
 
 def normalized_for_description(df: pd.DataFrame) -> pd.DataFrame:
@@ -228,13 +229,13 @@ def plot_normalization_histograms(df: pd.DataFrame, path=FIG_DIR / "hist_before_
         a_before, a_after = axes[2 * k], axes[2 * k + 1]
         a_before.axis("on")
         a_after.axis("on")
-        a_before.hist(df[c], bins=40, color=_COLORS[0])
+        a_before.hist(df[c], bins=40, color=COLORS[0])
         a_before.set_title(f"{c} (trước)", fontsize=9)
         a_after.hist(after[c], bins=40, color="#54a24b")
         a_after.set_title(f"{c} (sau log+scale)" if c != "AGE" else f"{c} (sau scale)", fontsize=9)
         for a in (a_before, a_after):
             a.tick_params(labelsize=7)
-    return _save(fig, path)
+    return save_fig(fig, path)
 
 
 def make_all_figures(df: pd.DataFrame, out_dir=FIG_DIR) -> list:

@@ -60,18 +60,18 @@ src/
   data.py                 đọc dữ liệu gốc, thống kê sơ bộ (summarize, label_distribution)
   preprocess.py           làm sạch (clean, negative_bill_ratio), đặc trưng dẫn xuất, chia dữ liệu, pipeline mã hóa/scale
   eda.py                  thống kê và biểu đồ EDA trên dữ liệu đã làm sạch (describe_numeric, default_rate_by, make_all_figures, ...)
-  reduce.py               PCA, FAMD, t-SNE
+  reduce.py               PCA (#10), FAMD (#11) và hàm vẽ/đo dùng chung; t-SNE (#12) chưa làm
   cluster.py              GMM, K-Means
   models.py               Naive Bayes, Logistic Regression, SVM RBF
   metrics.py              hàm tính metric và ghi results.csv
   score_reg.py            mục 2.4(c): hồi quy trên score
   two_stage.py            mô-đun mở rộng 2 tầng (tùy chọn)
-notebooks/                01_preprocess, 02_eda ... 06_two_stage, mỗi notebook gọi hàm trong src/
+notebooks/                01_preprocess, 02_eda, 02_reduce ... 06_two_stage, mỗi notebook gọi hàm trong src/
 results/
   results.csv             mỗi lần chạy 1 dòng (src/metrics.log_result): các trường định danh
                           + `timestamp`, `params` (JSON), `train_<metric>`, `val_<metric>`;
                           cột mới tự được thêm
-  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA")
+  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA"; 10 hình PCA/FAMD `pca_*.png`, `famd_*.png` do `notebooks/02_reduce.ipynb` sinh ra)
 scripts/create_issues.sh  tạo label, milestone và issue trên GitHub
 ```
 
@@ -130,7 +130,7 @@ Mỗi file `.npz` có `train_idx`, `val_idx` là **nhãn index** của `y` (khô
 ### Ghép kịch bản với notebook
 
 Chạy từng kịch bản bằng notebook tương ứng trong `notebooks/`.
-Hiện đã có `01_preprocess` và `02_eda`; các notebook còn lại **CHƯA ĐƯỢC TẠO**.
+Hiện đã có `01_preprocess`, `02_eda` và `02_reduce` (mới PCA, FAMD); các notebook còn lại **CHƯA ĐƯỢC TẠO**.
 Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, `02_reduce`,
 `03_classify`, `04_cluster`, `05_score_reg` là tên đề xuất, nhóm chốt lại
 (`02_reduce` đang trùng số với `02_eda`).
@@ -139,7 +139,7 @@ Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, 
 | --- | --- |
 | `01_preprocess` | làm sạch, đặc trưng dẫn xuất, chia dữ liệu |
 | `02_eda` | EDA: thống kê từng trường, tương quan, 7 hình trong `results/figures/` |
-| `02_reduce` | PCA, FAMD, t-SNE |
+| `02_reduce` | PCA, FAMD (xong, 10 hình `pca_*`, `famd_*`); t-SNE chưa làm (#12) |
 | `03_classify` | K1, K1b (mục 2.4b), K2, K3, K4, K7 |
 | `04_cluster` | K6 |
 | `05_score_reg` | K5 |
