@@ -68,7 +68,9 @@ src/
   two_stage.py            mô-đun mở rộng 2 tầng (tùy chọn)
 notebooks/                01_preprocess, 02_eda ... 06_two_stage, mỗi notebook gọi hàm trong src/
 results/
-  results.csv             mỗi lần chạy 1 dòng
+  results.csv             mỗi lần chạy 1 dòng (src/metrics.log_result): các trường định danh
+                          + `timestamp`, `params` (JSON), `train_<metric>`, `val_<metric>`;
+                          cột mới tự được thêm
   figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA")
 scripts/create_issues.sh  tạo label, milestone và issue trên GitHub
 ```
@@ -106,8 +108,24 @@ Kết quả báo cáo dạng trung bình ± độ lệch chuẩn qua 5 seed.
 - **K8. (Mở rộng)** mô-đun 2 tầng M1, M2, M4, M4' – tỉ lệ 7:3
 
 Dữ liệu 33 chiều = 29 chiều sau mã hóa + 4 đặc trưng dẫn xuất.
+Cờ `use_derived` trong `configs/experiment.yaml` bật/tắt 4 đặc trưng này
+(mặc định `true`; K3 ở tỉ lệ 7:3 chạy `false`).
 29 chiều sau mã hóa gồm: `LIMIT_BAL`, `AGE`, `SEX` one-hot 2, `EDUCATION` one-hot 4,
 `MARRIAGE` one-hot 3, `PAY_1..6`, `BILL_AMT1..6`, `PAY_AMT1..6`.
+
+### Phân hoạch train/validation
+
+`data/` bị gitignore nên **mỗi thành viên tự sinh lại** phân hoạch sau khi làm sạch
+(`clean()`), để mọi người dùng cùng tập dòng. Cùng seed thì ra cùng phân hoạch:
+
+```python
+from src.preprocess import make_splits, save_splits, load_splits
+splits = make_splits(y, cfg["seeds"], cfg["splits"])   # y đã qua clean()
+save_splits(splits)                                     # data/splits/split_7-3_seed0.npz, ...
+splits = load_splits(cfg["seeds"], cfg["splits"])       # đọc lại
+```
+
+Mỗi file `.npz` có `train_idx`, `val_idx` là **nhãn index** của `y` (không phải vị trí).
 
 ### Ghép kịch bản với notebook
 

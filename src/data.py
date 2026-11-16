@@ -15,6 +15,8 @@ BILL_AMT = [f"BILL_AMT{i}" for i in range(1, 7)]
 PAY_AMT = [f"PAY_AMT{i}" for i in range(1, 7)]
 MONEY_COLS = ["LIMIT_BAL"] + BILL_AMT + PAY_AMT
 TARGET = "default"
+# 4 đặc trưng dẫn xuất (mục 2.5), sinh bởi preprocess.add_derived_features
+DERIVED_COLS = ["UTIL_RATIO", "PAY_RATIO", "N_LATE", "LATE_TREND"]
 
 
 def load_raw(path: Path = RAW_FILE) -> pd.DataFrame:
