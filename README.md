@@ -59,17 +59,17 @@ src/
   config.py               đọc file cấu hình
   data.py                 đọc dữ liệu gốc, thống kê sơ bộ (summarize, label_distribution)
   preprocess.py           làm sạch (clean, negative_bill_ratio), đặc trưng dẫn xuất, chia dữ liệu, pipeline mã hóa/scale
-  eda.py                  thống kê và biểu đồ dữ liệu gốc
+  eda.py                  thống kê và biểu đồ EDA trên dữ liệu đã làm sạch (describe_numeric, default_rate_by, make_all_figures, ...)
   reduce.py               PCA, FAMD, t-SNE
   cluster.py              GMM, K-Means
   models.py               Naive Bayes, Logistic Regression, SVM RBF
   metrics.py              hàm tính metric và ghi results.csv
   score_reg.py            mục 2.4(c): hồi quy trên score
   two_stage.py            mô-đun mở rộng 2 tầng (tùy chọn)
-notebooks/                01_preprocess ... 06_two_stage, mỗi notebook gọi hàm trong src/
+notebooks/                01_preprocess, 02_eda ... 06_two_stage, mỗi notebook gọi hàm trong src/
 results/
   results.csv             mỗi lần chạy 1 dòng
-  figures/                hình cho báo cáo
+  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA")
 scripts/create_issues.sh  tạo label, milestone và issue trên GitHub
 ```
 
@@ -112,13 +112,15 @@ Dữ liệu 33 chiều = 29 chiều sau mã hóa + 4 đặc trưng dẫn xuất.
 ### Ghép kịch bản với notebook
 
 Chạy từng kịch bản bằng notebook tương ứng trong `notebooks/`.
-**CÁC NOTEBOOK CHƯA ĐƯỢC TẠO** (hiện repo mới có khung `src/`).
-Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_reduce`,
-`03_classify`, `04_cluster`, `05_score_reg` là tên đề xuất, nhóm chốt lại.
+Hiện đã có `01_preprocess` và `02_eda`; các notebook còn lại **CHƯA ĐƯỢC TẠO**.
+Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, `02_reduce`,
+`03_classify`, `04_cluster`, `05_score_reg` là tên đề xuất, nhóm chốt lại
+(`02_reduce` đang trùng số với `02_eda`).
 
 | Notebook | Nội dung |
 | --- | --- |
-| `01_preprocess` | làm sạch, đặc trưng dẫn xuất, chia dữ liệu, EDA |
+| `01_preprocess` | làm sạch, đặc trưng dẫn xuất, chia dữ liệu |
+| `02_eda` | EDA: thống kê từng trường, tương quan, 7 hình trong `results/figures/` |
 | `02_reduce` | PCA, FAMD, t-SNE |
 | `03_classify` | K1, K1b (mục 2.4b), K2, K3, K4, K7 |
 | `04_cluster` | K6 |
@@ -159,6 +161,16 @@ set "PYTHONPATH=<thư mục gốc repo>" && jupyter notebook
 
 Đường dẫn dữ liệu và cấu hình vẫn đúng ở cả hai cách, vì `src/config.py`
 tính `ROOT` từ `__file__`.
+
+### Vẽ lại hình EDA
+
+Cần có dữ liệu trong `data/raw/` (mục 1). Từ thư mục gốc repo:
+
+```bash
+python -c "from src.data import load_raw; from src.preprocess import clean; from src.eda import make_all_figures; make_all_figures(clean(load_raw()))"
+```
+
+Hoặc chạy lại `notebooks/02_eda.ipynb`. Hình ghi đè vào `results/figures/`.
 
 ## 5. Script tạo issue
 
