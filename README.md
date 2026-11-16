@@ -36,6 +36,17 @@ pip install -r requirements.txt
 
 Yêu cầu Python 3.10 trở lên.
 
+Lưu ý Windows: `clean()` in tiếng Việt ra console; nếu console dùng cp1252 sẽ báo
+`UnicodeEncodeError`. Bật UTF-8 trước khi chạy script:
+
+```bat
+set PYTHONUTF8=1
+```
+
+```powershell
+$env:PYTHONUTF8=1
+```
+
 ## 3. Cách tổ chức
 
 ```text
@@ -46,8 +57,8 @@ data/                     dữ liệu (không đưa lên git)
   splits/                 index train/validation đã chia (sinh bởi src/preprocess.py)
 src/
   config.py               đọc file cấu hình
-  data.py                 đọc dữ liệu gốc
-  preprocess.py           làm sạch, đặc trưng dẫn xuất, chia dữ liệu, pipeline mã hóa/scale
+  data.py                 đọc dữ liệu gốc, thống kê sơ bộ (summarize, label_distribution)
+  preprocess.py           làm sạch (clean, negative_bill_ratio), đặc trưng dẫn xuất, chia dữ liệu, pipeline mã hóa/scale
   eda.py                  thống kê và biểu đồ dữ liệu gốc
   reduce.py               PCA, FAMD, t-SNE
   cluster.py              GMM, K-Means
