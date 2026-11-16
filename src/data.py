@@ -26,7 +26,7 @@ def load_raw(path: Path = RAW_FILE) -> pd.DataFrame:
     """
     if not Path(path).exists():
         raise FileNotFoundError(
-            f"Không thấy {path}. Xem README.txt mục 1 để tải dữ liệu."
+            f"Không thấy {path}. Xem README.md mục 1 để tải dữ liệu."
         )
     df = pd.read_excel(path, header=1)
     df = df.rename(columns={"PAY_0": "PAY_1", "default payment next month": TARGET})
