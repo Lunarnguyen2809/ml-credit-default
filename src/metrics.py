@@ -117,3 +117,14 @@ def log_result(row: dict, path=RESULTS_CSV) -> None:
         new = pd.concat([old, new], ignore_index=True)  # cột cũ trước, cột mới nối sau
         new = new.fillna("")
     new.to_csv(path, index=False, encoding="utf-8")
+
+
+def load_results(pattern="results*.csv", results_dir=RESULTS_DIR) -> pd.DataFrame:
+    """Gộp mọi file `results_dir/pattern` (mặc định results/results*.csv, mỗi mô hình một file) thành 1 DataFrame.
+
+    Cột thiếu ở file này được điền NaN. Không có file nào -> DataFrame rỗng.
+    """
+    files = sorted(Path(results_dir).glob(pattern))
+    if not files:
+        return pd.DataFrame()
+    return pd.concat([pd.read_csv(f, encoding="utf-8") for f in files], ignore_index=True)
