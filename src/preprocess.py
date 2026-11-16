@@ -7,12 +7,13 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from imblearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
 from src.config import DATA_DIR
-from src.data import DERIVED_COLS, PAY_STATUS  # noqa: F401  (DERIVED_COLS re-export cho nơi khác)
-
-from src.data import BILL_AMT
+from src.data import BILL_AMT, DERIVED_COLS, MONEY_COLS, PAY_STATUS, PROFILE_CAT
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
@@ -151,10 +152,29 @@ def load_splits(seeds, ratios: dict, in_dir=DATA_DIR / "splits") -> dict:
     return splits
 
 
-def build_preprocessor(use_derived: bool = True):
-    """ColumnTransformer: one-hot cho SEX/EDUCATION/MARRIAGE, giữ PAY_x thứ bậc,
-    signed_log cho cột tiền, rồi StandardScaler. Kết quả phải ra 33 chiều (29 nếu use_derived=False).
+def build_preprocessor(use_derived: bool = True) -> Pipeline:
+    """Pipeline (imblearn) mã hóa + log + scale (mục 4.1, bước 6-7); fit CHỈ trên train.
 
-    TODO(#7). Gói vào imblearn.pipeline.Pipeline để có thể chèn SMOTENC ở bước sau.
+    Bước 1, ColumnTransformer:
+    - one-hot SEX/EDUCATION/MARRIAGE (2 + 4 + 3 = 9 cột; sau clean() EDUCATION chỉ còn 1..4,
+      MARRIAGE 1..3). `handle_unknown="ignore"`: nhãn lạ ở validation thành vector 0, không lỗi.
+    - signed_log cho `MONEY_COLS` (13 cột tiền: LIMIT_BAL, BILL_AMT1..6, PAY_AMT1..6)
+    - AGE, PAY_1..PAY_6 (giữ dạng số thứ bậc) và, nếu `use_derived`, `DERIVED_COLS` đi thẳng qua
+    Bước 2, StandardScaler trên toàn bộ cột (kể cả one-hot) -> trung bình 0, độ lệch chuẩn 1 trên train.
+
+    Đầu ra 33 chiều (29 nếu `use_derived=False`; khi đó df đầu vào không cần có cột dẫn xuất).
+    Thứ tự cột: one-hot, tiền (log), AGE, PAY_1..6, [dẫn xuất]. `get_feature_names_out()` trả về
+    tên cột theo đúng thứ tự (vd "SEX_1", "LIMIT_BAL", "PAY_1", "UTIL_RATIO"), dùng cho PCA loadings.
+
+    Dùng `imblearn.pipeline.Pipeline` để sau này chèn SMOTENC/SMOTE (chỉ chạy lúc fit) trong từng fold CV.
     """
-    raise NotImplementedError
+    passthrough_cols = ["AGE"] + PAY_STATUS + (DERIVED_COLS if use_derived else [])
+    column_transformer = ColumnTransformer(
+        transformers=[
+            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), PROFILE_CAT),
+            ("log", FunctionTransformer(signed_log, feature_names_out="one-to-one"), MONEY_COLS),
+            ("pass", "passthrough", passthrough_cols),
+        ],
+        verbose_feature_names_out=False,  # tên cột gốc, không tiền tố "cat__"; không trùng giữa các khối
+    )
+    return Pipeline([("columns", column_transformer), ("scaler", StandardScaler())])
