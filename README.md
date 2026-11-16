@@ -55,23 +55,24 @@ docs/                     kế hoạch và tài liệu (docs/plan.md)
 data/                     dữ liệu (không đưa lên git)
   raw/                    file gốc tải từ UCI
   splits/                 index train/validation đã chia (sinh bởi src/preprocess.py)
+  models/                 GMM, K-Means, preprocessor, PCA đã fit (joblib, gitignore, sinh lại bằng notebooks/04_cluster.ipynb)
 src/
   config.py               đọc file cấu hình
   data.py                 đọc dữ liệu gốc, thống kê sơ bộ (summarize, label_distribution)
   preprocess.py           làm sạch (clean, negative_bill_ratio), đặc trưng dẫn xuất, chia dữ liệu, pipeline mã hóa/scale
   eda.py                  thống kê và biểu đồ EDA trên dữ liệu đã làm sạch (describe_numeric, default_rate_by, make_all_figures, ...)
   reduce.py               PCA (#10), FAMD (#11) và hàm vẽ/đo dùng chung; t-SNE (#12) chưa làm
-  cluster.py              GMM, K-Means
+  cluster.py              GMM, K-Means: chọn k (k_stability: BIC + ARI giữa các seed), kiểm tra suy biến GMM, chỉ số chất lượng, quan hệ cụm - nhãn, hồ sơ cụm, hình, lưu/nạp mô hình (#21)
   models.py               Naive Bayes, Logistic Regression, SVM RBF
   metrics.py              hàm tính metric và ghi results.csv
   score_reg.py            mục 2.4(c): hồi quy trên score
   two_stage.py            mô-đun mở rộng 2 tầng (tùy chọn)
-notebooks/                01_preprocess, 02_eda, 02_reduce ... 06_two_stage, mỗi notebook gọi hàm trong src/
+notebooks/                01_preprocess, 02_eda, 02_reduce, 04_cluster ... 06_two_stage, mỗi notebook gọi hàm trong src/
 results/
   results.csv             mỗi lần chạy 1 dòng (src/metrics.log_result): các trường định danh
                           + `timestamp`, `params` (JSON), `train_<metric>`, `val_<metric>`;
                           cột mới tự được thêm
-  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA"; 10 hình PCA/FAMD `pca_*.png`, `famd_*.png` do `notebooks/02_reduce.ipynb` sinh ra)
+  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA"; 10 hình PCA/FAMD `pca_*.png`, `famd_*.png` do `notebooks/02_reduce.ipynb` sinh ra; 6 hình `cluster_*.png` do `notebooks/04_cluster.ipynb` sinh ra)
 scripts/create_issues.sh  tạo label, milestone và issue trên GitHub
 ```
 
@@ -103,7 +104,9 @@ Kết quả báo cáo dạng trung bình ± độ lệch chuẩn qua 5 seed.
 - **K4. Đối chứng FAMD** 11 chiều – tỉ lệ 7:3, 3 mô hình
 - **K5. Hồi quy trên score (2.4c):** 2 score (Logistic, SVM) × Ridge, K-NN
   × 2 dạng dữ liệu × 3 tỉ lệ
-- **K6. Phân cụm (2.3):** GMM, K-Means trên 11 thành phần PCA, k = 2..10
+- **K6. Phân cụm (2.3):** GMM (`reg_covar` 1e-2, `n_init` 5; chọn k ổn định giữa 5 seed: ARI trung bình >= 0,8,
+  BIC trung bình nhỏ nhất, bỏ k = 2) và K-Means (chọn k theo silhouette) trên 11 thành phần PCA của train,
+  k = 2..10; nhãn chỉ dùng để đánh giá cụm sau khi phân cụm
 - **K7. Công bằng:** recall, FPR theo SEX và nhóm tuổi; có / không có SEX
 - **K8. (Mở rộng)** mô-đun 2 tầng M1, M2, M4, M4' – tỉ lệ 7:3
 
@@ -130,7 +133,7 @@ Mỗi file `.npz` có `train_idx`, `val_idx` là **nhãn index** của `y` (khô
 ### Ghép kịch bản với notebook
 
 Chạy từng kịch bản bằng notebook tương ứng trong `notebooks/`.
-Hiện đã có `01_preprocess`, `02_eda` và `02_reduce` (mới PCA, FAMD); các notebook còn lại **CHƯA ĐƯỢC TẠO**.
+Hiện đã có `01_preprocess`, `02_eda`, `02_reduce` (mới PCA, FAMD) và `04_cluster`; các notebook còn lại **CHƯA ĐƯỢC TẠO**.
 Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, `02_reduce`,
 `03_classify`, `04_cluster`, `05_score_reg` là tên đề xuất, nhóm chốt lại
 (`02_reduce` đang trùng số với `02_eda`).
@@ -141,7 +144,7 @@ Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, 
 | `02_eda` | EDA: thống kê từng trường, tương quan, 7 hình trong `results/figures/` |
 | `02_reduce` | PCA, FAMD (xong, 10 hình `pca_*`, `famd_*`); t-SNE chưa làm (#12) |
 | `03_classify` | K1, K1b (mục 2.4b), K2, K3, K4, K7 |
-| `04_cluster` | K6 |
+| `04_cluster` | K6 (xong, 6 hình `cluster_*`; lưu mô hình vào `data/models/`) |
 | `05_score_reg` | K5 |
 | `06_two_stage` | K8 |
 
