@@ -62,6 +62,8 @@ results/
                           cột mới tự được thêm
   figures/                hình cho báo cáo
 scripts/create_issues.sh  tạo label, milestone và issue trên GitHub
+tests/                    pytest cho hàm dùng chung trong src/ (dữ liệu giả lập)
+.github/workflows/        CI: chạy pytest mỗi lần push / pull request
 ```
 
 Ghi chú về số mục:
@@ -180,3 +182,15 @@ tính `ROOT` từ `__file__`.
 
 - Chạy lại an toàn: label đã có thì được cập nhật (`gh label create --force`);
   milestone và issue đã có (trùng tên) thì bỏ qua.
+
+## 6. Chạy test
+
+```bash
+pip install -r requirements.txt    # đã gồm pytest
+pytest -q
+```
+
+CI (`.github/workflows/test.yml`) tự chạy `pytest -q` trên mỗi push và pull request.
+
+Quy ước: mỗi PR thêm hàm dùng chung vào `src/` phải thêm test tương ứng trong `tests/`,
+dùng **dữ liệu giả lập** (tự sinh trong test, không đọc `data/`, **không bao giờ** dùng dữ liệu thật).
