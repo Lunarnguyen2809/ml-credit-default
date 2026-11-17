@@ -301,7 +301,7 @@ Mọi thí nghiệm dùng chung một pipeline, cùng phân hoạch dữ liệu 
 - **Seed cố định:** 5 seed {0, 1, 2, 3, 4}; mỗi seed sinh một phân hoạch cho mỗi tỉ lệ chia. Mọi mô hình dùng chung phân hoạch đó.
 - **Phân tầng:** chia theo nhãn; với mô-đun 2 tầng, phân tầng theo (cụm × nhãn).
 - **Pipeline:** sklearn.Pipeline gói làm sạch → mã hóa → scale → giảm chiều → mô hình, để không bước nào fit nhầm trên validation.
-- **Lưu kết quả:** mỗi lần chạy ghi 1 dòng vào `results/results_<model>.csv` (mỗi mô hình 1 file, gộp bằng `metrics.load_results()`) gồm: mô hình, tỉ lệ, dạng dữ liệu, seed, siêu tham số, metric train, metric validation, thời gian huấn luyện).
+- **Lưu kết quả:** mỗi lần chạy ghi 1 dòng vào `results/results_<model>.csv` (mỗi mô hình 1 file, gộp bằng `metrics.load_results()`) gồm: mô hình, tỉ lệ, dạng dữ liệu, seed, siêu tham số, metric train, metric validation, thời gian huấn luyện.
 - **Báo cáo:** trung bình ± độ lệch chuẩn qua 5 seed, không báo cáo 1 lần chạy.
 
 ### 6.2. Metric
