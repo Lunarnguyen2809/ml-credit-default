@@ -133,16 +133,25 @@ def _drop_from_preprocessor(prep, drop_cols):
 
 
 def _filter_sampler_cols(smp, drop_cols):
-    """Bỏ tên cột trong `drop_cols` khỏi `categorical_features` của sampler (SMOTENC) nếu đó là list tên cột (str).
+    """Bỏ tên cột trong `drop_cols` khỏi `categorical_features` của sampler (SMOTENC) khi có drop_cols.
 
-    Sampler không có tham số `categorical_features`, hoặc giá trị là chỉ số/mask (không phải list tên) thì giữ nguyên.
+    Sampler không có tham số `categorical_features` thì giữ nguyên. Nếu có drop_cols mà `categorical_features`
+    không phải list/tuple tên cột (chỉ số nguyên, mask bool, ndarray...) thì báo ValueError: chỉ số sẽ lệch
+    âm thầm sau khi bỏ cột. Trả về bản clone (không sửa đối tượng gốc, kể cả khi factory trả về object dùng chung).
     """
     if not drop_cols or not hasattr(smp, "get_params"):
         return smp
-    cats = smp.get_params().get("categorical_features")
-    if isinstance(cats, (list, tuple)) and cats and all(isinstance(c, str) for c in cats):
-        drop = set(drop_cols)
-        smp.set_params(categorical_features=[c for c in cats if c not in drop])
+    params = smp.get_params()
+    if "categorical_features" not in params:
+        return smp
+    cats = params["categorical_features"]
+    if not (isinstance(cats, (list, tuple)) and cats and all(isinstance(c, str) for c in cats)):
+        raise ValueError(
+            "drop_cols không rỗng: sampler.categorical_features phải là list/tuple TÊN cột (str), "
+            f"không dùng chỉ số/mask/ndarray (chỉ số sẽ lệch sau khi bỏ cột); nhận được {cats!r}")
+    drop = set(drop_cols)
+    smp = clone(smp)
+    smp.set_params(categorical_features=[c for c in cats if c not in drop])
     return smp
 
 

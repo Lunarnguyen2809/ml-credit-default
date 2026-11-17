@@ -298,6 +298,22 @@ def test_build_pipeline_drop_cols_loc_categorical_features_cua_sampler_object():
     assert "SEX" in smp.categorical_features  # sampler gốc (được clone) không bị đổi
 
 
+def test_build_pipeline_drop_cols_voi_categorical_features_chi_so_bao_loi():
+    smp = SMOTENC(categorical_features=[1, 2, 3], random_state=0)
+    with pytest.raises(ValueError, match="TÊN cột"):
+        build_pipeline(GaussianNB(), "full", CFG, sampler=smp, drop_cols=("SEX",))
+    with pytest.raises(ValueError, match="TÊN cột"):
+        build_pipeline(GaussianNB(), "full", CFG, sampler=lambda seed: SMOTENC(
+            categorical_features=np.array([1, 2]), random_state=seed), drop_cols=("SEX",))
+
+
+def test_build_pipeline_factory_tra_object_dung_chung_khong_bi_sua():
+    shared = SMOTENC(categorical_features=PROFILE_CAT, random_state=0)
+    pipe = build_pipeline(GaussianNB(), "full", CFG, sampler=lambda seed: shared, drop_cols=("SEX",))
+    assert "SEX" not in pipe.named_steps["sampler"].categorical_features
+    assert "SEX" in shared.categorical_features
+
+
 def test_build_pipeline_sampler_stage_processed_sau_scaler(df):
     pipe = build_pipeline(GaussianNB(), "pca11", CFG, sampler=RandomOverSampler(random_state=0),
                           sampler_stage="processed")
