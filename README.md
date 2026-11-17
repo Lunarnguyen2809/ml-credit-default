@@ -63,16 +63,16 @@ src/
   eda.py                  thống kê và biểu đồ EDA trên dữ liệu đã làm sạch (describe_numeric, default_rate_by, make_all_figures, ...)
   reduce.py               PCA (#10), FAMD (#11) và hàm vẽ/đo dùng chung; t-SNE (#12) chưa làm
   cluster.py              GMM, K-Means: chọn k (k_stability: BIC + ARI giữa các seed), kiểm tra suy biến GMM, chỉ số chất lượng, quan hệ cụm - nhãn, hồ sơ cụm, hình, lưu/nạp mô hình (#21)
-  models.py               Naive Bayes, Logistic Regression, SVM RBF
-  metrics.py              hàm tính metric và ghi results.csv
+  models.py               `build_naive_bayes` (xong, #13); Logistic, SVM RBF chưa làm (#14, #20). Phần dùng chung: `prefix_grid`, `tune`, `choose_threshold`, `score_function`, `build_pipeline`, `run_classification` (chạy 1 kịch bản, mặc định K1: tỉ lệ × dạng dữ liệu × seed → dò lưới → ghi `results/results_<model>.csv`). Móc mở rộng của `run_classification`: `sampler` (factory(seed), vd SMOTENC cho B2), `sampler_stage` ("raw" trước preprocessor, mặc định | "processed" sau scaler, trước PCA/model), `pipeline_factory` (callable(est, data_form, cfg, seed) → Pipeline, cho FAMD-11/không SEX; không dùng chung với `sampler`/`sampler_stage` → ValueError), `drop_cols` (vd `("SEX",)` cho K7; cũng lọc cột đó khỏi `categorical_features` của SMOTENC), `tune_subsample` (dò lưới trên mẫu con phân tầng rồi fit lại trên toàn train; tự lấy `grid_subsample` của SVM), `scenario` (nhãn kịch bản, nằm trong khóa thay thế), `thr_source` ("val" mặc định, `val_opt_*` lạc quan | "oof", nên dùng cho bảng so sánh cuối). `balancing` là nhãn (nhãn "B2*" mà thiếu `sampler`/`pipeline_factory` → ValueError; B1 → `build_logistic(class_weight="balanced")`, B2 → `sampler`). Quy ước lưới: khóa dạng `model__<tham số>` (config dùng khóa trần, đi qua `prefix_grid`)
+  metrics.py              hàm tính metric, ghi results (`log_result`) và gộp các file kết quả (`load_results`)
   score_reg.py            mục 2.4(c): hồi quy trên score
   two_stage.py            mô-đun mở rộng 2 tầng (tùy chọn)
-notebooks/                01_preprocess, 02_eda, 02_reduce, 04_cluster ... 06_two_stage, mỗi notebook gọi hàm trong src/
+notebooks/                01_preprocess, 02_eda, 02_reduce, 03_naive_bayes, 04_cluster ... 06_two_stage, mỗi notebook gọi hàm trong src/
 results/
-  results.csv             mỗi lần chạy 1 dòng (src/metrics.log_result): các trường định danh
+  results_<model>.csv     mỗi mô hình một file (tránh xung đột git); mỗi lần chạy 1 dòng (src/metrics.log_result): các trường định danh (kể cả `scenario`)
                           + `timestamp`, `params` (JSON), `train_<metric>`, `val_<metric>`;
                           cột mới tự được thêm
-  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA"; 10 hình PCA/FAMD `pca_*.png`, `famd_*.png` do `notebooks/02_reduce.ipynb` sinh ra; 6 hình `cluster_*.png` do `notebooks/04_cluster.ipynb` sinh ra)
+  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA"; 10 hình PCA/FAMD `pca_*.png`, `famd_*.png` do `notebooks/02_reduce.ipynb` sinh ra; 6 hình `cluster_*.png` do `notebooks/04_cluster.ipynb` sinh ra; `nb_validation_curve.png`, `nb_learning_curve.png` do `notebooks/03_naive_bayes.ipynb` sinh ra)
 scripts/create_issues.sh  tạo label, milestone và issue trên GitHub
 tests/                    pytest cho hàm dùng chung trong src/ (dữ liệu giả lập)
 .github/workflows/        CI: chạy pytest mỗi lần push / pull request
@@ -135,7 +135,7 @@ Mỗi file `.npz` có `train_idx`, `val_idx` là **nhãn index** của `y` (khô
 ### Ghép kịch bản với notebook
 
 Chạy từng kịch bản bằng notebook tương ứng trong `notebooks/`.
-Hiện đã có `01_preprocess`, `02_eda`, `02_reduce` (mới PCA, FAMD) và `04_cluster`; các notebook còn lại **CHƯA ĐƯỢC TẠO**.
+Hiện đã có `01_preprocess`, `02_eda`, `02_reduce` (mới PCA, FAMD), `03_naive_bayes` (K1 cho Naive Bayes, #13) và `04_cluster`; các notebook còn lại **CHƯA ĐƯỢC TẠO**.
 Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, `02_reduce`,
 `03_classify`, `04_cluster`, `05_score_reg` là tên đề xuất, nhóm chốt lại
 (`02_reduce` đang trùng số với `02_eda`).
@@ -145,10 +145,26 @@ Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, 
 | `01_preprocess` | làm sạch, đặc trưng dẫn xuất, chia dữ liệu |
 | `02_eda` | EDA: thống kê từng trường, tương quan, 7 hình trong `results/figures/` |
 | `02_reduce` | PCA, FAMD (xong, 10 hình `pca_*`, `famd_*`); t-SNE chưa làm (#12) |
+| `03_naive_bayes` | K1 riêng cho Naive Bayes (30 lượt, #13): bảng mean ± std, overfit, validation/learning curve, calibration; **tách biệt** với `03_classify` chung |
 | `03_classify` | K1, K1b (mục 2.4b), K2, K3, K4, K7 |
 | `04_cluster` | K6 (xong, 6 hình `cluster_*`; lưu mô hình vào `data/models/`) |
 | `05_score_reg` | K5 |
 | `06_two_stage` | K8 |
+
+### Chạy K1 cho một mô hình
+
+Dùng `src.models.run_classification` (xem docstring); ví dụ NB, xem `notebooks/03_naive_bayes.ipynb`:
+
+```python
+grid = prefix_grid(cfg["grids"]["naive_bayes"])
+run_classification("naive_bayes", build_naive_bayes, grid, cfg, df, splits)   # K1, 30 lượt, ghi results/results_naive_bayes.csv
+```
+
+Gộp mọi file để phân tích: `from src.metrics import load_results; res = load_results()` (đọc `results/results*.csv`).
+Ví dụ B2 (SMOTENC trong pipeline, chỉ fit trên train):
+`run_classification("logistic", build_logistic, grid, cfg, df, splits, balancing="B2_smotenc", sampler=lambda seed: SMOTENC(categorical_features=PROFILE_CAT, random_state=seed))`.
+
+`replace=True` (mặc định) xóa dòng cũ cùng khóa (model, ratio, data_form, balancing, derived, seed, scenario) trước khi ghi nên chạy lại không bị trùng.
 
 ### Chạy notebook
 

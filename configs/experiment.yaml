@@ -22,7 +22,8 @@ balancing: [B0_none, B1_class_weight, B2_smotenc]
 
 grids:
   naive_bayes:
-    var_smoothing: [1.0e-9, 1.0e-7, 1.0e-5, 1.0e-3, 1.0e-1]
+    # lưới mở rộng lên 10: với lưới tới 0.1, cả 30 lượt chọn đúng biên 0.1 nên tối ưu có thể nằm ngoài lưới
+    var_smoothing: [1.0e-9, 1.0e-7, 1.0e-5, 1.0e-3, 1.0e-1, 3.0e-1, 1.0, 3.0, 10.0]
   logistic:
     C: [0.001, 0.01, 0.1, 1, 10, 100]
     penalty: [l1, l2]
