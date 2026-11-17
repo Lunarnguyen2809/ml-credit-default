@@ -59,10 +59,11 @@ Người: Bích = Lunarnguyen2809, Quỳnh Anh = QuynhRua, synaamin = synaamin.
 ### Quy ước
 - Không commit `plan/` cá nhân (đã gitignore). Ghi chú cần cả nhóm biết thì ghi vào file này.
 - Mỗi PR thêm hàm dùng chung vào `src/` thì thêm test trong `tests/` bằng dữ liệu giả; CI chạy `pytest`.
-- `data/` bị gitignore: mỗi người tự sinh lại splits sau khi `clean` (xem README mục dữ liệu).
-- Kernel notebook phải là venv của repo (cần `imblearn` và các gói trong `requirements.txt`).
+- `data/` bị gitignore: mỗi người tự sinh lại splits sau khi `clean` (xem README mục 4, phần phân hoạch train/validation).
+- Nên chạy notebook bằng kernel của venv repo (cần `imblearn` và các gói trong `requirements.txt`), kernel Python hệ thống có thể thiếu gói.
 - Kết quả thí nghiệm ghi bằng `src/metrics.log_result` vào `results/results.csv` (mỗi lần chạy 1 dòng). Ghi chú: PR #38 (#13) đang đề xuất thêm hàm chạy phân loại dùng chung; nếu đổi cách ghi kết quả (vd. file riêng theo mô hình) thì cập nhật dòng này khi merge.
-- Ngưỡng 0 cho `decision_function` (SVM, Logistic dạng score); ngưỡng 0.5 mặc định cho xác suất; ngưỡng chọn trên validation bằng `models.choose_threshold`.
+- Ngưỡng 0 cho `decision_function` (SVM); ngưỡng 0.5 mặc định cho xác suất. Ngưỡng tối ưu F1 chọn trên validation (plan.md mục 4.4, 6.2); hàm `models.choose_threshold` đang ở PR #38, chưa merge.
+- PR #38 đang kèm `plan/issue-13-naive-bayes.md`: `.gitignore` không chặn file đã add sẵn, nên gỡ bằng `git rm --cached` trước khi merge.
 - Fit mọi bước (scaler, PCA, FAMD, GMM) trên train, validation chỉ transform.
 
 ### Quyết định và lưu ý từ các issue đã xong
