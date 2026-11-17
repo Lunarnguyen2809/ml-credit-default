@@ -51,7 +51,7 @@ $env:PYTHONUTF8=1
 
 ```text
 configs/experiment.yaml   seed, tỉ lệ chia, lưới siêu tham số – mọi thí nghiệm đọc từ đây
-docs/                     kế hoạch và tài liệu (docs/plan.md)
+docs/                     kế hoạch, tiến trình và tài liệu (docs/plan.md, docs/progress.md)
 data/                     dữ liệu (không đưa lên git)
   raw/                    file gốc tải từ UCI
   splits/                 index train/validation đã chia (sinh bởi src/preprocess.py)

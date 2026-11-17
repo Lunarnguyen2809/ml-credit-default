@@ -13,3 +13,6 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
+
+# Kế hoạch cá nhân (không đưa lên repo; ghi chú chung ở docs/progress.md)
+plan/
