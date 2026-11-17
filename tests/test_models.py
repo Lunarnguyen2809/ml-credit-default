@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from imblearn.over_sampling import SMOTENC
+from imblearn.over_sampling import RandomOverSampler, SMOTENC
 from sklearn.decomposition import PCA
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
@@ -257,3 +257,103 @@ def test_load_results_gop_hai_file_khac_cot(tmp_path):
 def test_load_results_thu_muc_rong(tmp_path):
     out = load_results(results_dir=tmp_path)
     assert isinstance(out, pd.DataFrame) and out.empty
+
+
+# ---------- ràng buộc tham số run_classification (review PR #38) ----------
+
+def test_run_classification_b2_thieu_sampler_bao_loi(df, splits, tmp_path):
+    path = tmp_path / "r.csv"
+    with pytest.raises(ValueError, match="B2"):
+        run(df, splits, path, balancing="B2_smotenc")
+    assert not path.exists()
+    run(df, splits, path, seeds=[0], balancing="B1_class_weight")  # B1 không bị ràng buộc
+
+
+def test_run_classification_b2_voi_pipeline_factory_hop_le(df, splits, tmp_path):
+    path = tmp_path / "r.csv"
+    run(df, splits, path, seeds=[0], balancing="B2_x",
+        pipeline_factory=lambda est, form, cfg, seed: build_pipeline(est, form, cfg, seed, sampler=RandomOverSampler(random_state=seed)))
+    assert pd.read_csv(path)["balancing"].iloc[0] == "B2_x"
+
+
+def test_run_classification_factory_cung_sampler_hoac_stage_bao_loi(df, splits, tmp_path):
+    fac = lambda est, form, cfg, seed: build_pipeline(est, form, cfg, seed)  # noqa: E731
+    with pytest.raises(ValueError, match="pipeline_factory"):
+        run(df, splits, tmp_path / "a.csv", pipeline_factory=fac, sampler=RandomOverSampler())
+    with pytest.raises(ValueError, match="pipeline_factory"):
+        run(df, splits, tmp_path / "a.csv", pipeline_factory=fac, sampler_stage="processed")
+
+
+def test_run_classification_drop_cols_voi_smotenc_loc_categorical_features(df, splits, tmp_path):
+    path = tmp_path / "r.csv"
+    out = run(df, splits, path, seeds=[0], drop_cols=("SEX",), balancing="B2_smotenc", scenario="K7",
+              sampler=lambda seed: SMOTENC(categorical_features=PROFILE_CAT, random_state=seed))
+    assert len(out) == 1 and 0 <= out["val"].iloc[0]["pr_auc"] <= 1
+
+
+def test_build_pipeline_drop_cols_loc_categorical_features_cua_sampler_object():
+    smp = SMOTENC(categorical_features=PROFILE_CAT, random_state=0)
+    pipe = build_pipeline(GaussianNB(), "full", CFG, sampler=smp, drop_cols=("SEX",))
+    assert "SEX" not in pipe.named_steps["sampler"].categorical_features
+    assert "SEX" in smp.categorical_features  # sampler gốc (được clone) không bị đổi
+
+
+def test_build_pipeline_sampler_stage_processed_sau_scaler(df):
+    pipe = build_pipeline(GaussianNB(), "pca11", CFG, sampler=RandomOverSampler(random_state=0),
+                          sampler_stage="processed")
+    assert list(pipe.named_steps) == ["columns", "scaler", "sampler", "pca", "model"]
+    with pytest.raises(ValueError):
+        build_pipeline(GaussianNB(), "full", CFG, sampler=RandomOverSampler(), sampler_stage="xyz")
+
+
+def test_run_classification_sampler_stage_processed(df, splits, tmp_path):
+    path = tmp_path / "r.csv"
+    out = run(df, splits, path, seeds=[0], balancing="B2_ros", sampler=RandomOverSampler(random_state=0),
+              sampler_stage="processed", data_forms=("full", "pca11"))
+    assert len(out) == 2
+
+
+# ---------- không rò rỉ: sampler chỉ resample train, PCA chỉ fit trên train ----------
+
+class RecordingSampler(RandomOverSampler):
+    """RandomOverSampler ghi lại số mẫu đã thấy / số mẫu sau resample ở mỗi lần fit_resample."""
+
+    def fit_resample(self, X, y, **kw):
+        Xr, yr = super().fit_resample(X, y, **kw)
+        self.calls_ = getattr(self, "calls_", []) + [(len(y), len(yr))]
+        return Xr, yr
+
+
+def test_sampler_chi_resample_train_khong_dung_validation(df, splits):
+    tr, va = splits[("7:3", 0)]
+    X, y = df.drop(columns=TARGET), df[TARGET]
+    smp = RecordingSampler(random_state=0)
+    pipe = build_pipeline(GaussianNB(), "full", CFG, sampler=smp)
+    pipe.fit(X.loc[tr], y.loc[tr])
+    fitted = pipe.named_steps["sampler"]
+    assert len(fitted.calls_) == 1
+    n_seen, n_after = fitted.calls_[0]
+    assert n_seen == len(tr) and n_after > len(tr)  # chỉ thấy train, và train được tăng mẫu
+    pipe.predict_proba(X.loc[va])
+    pipe.predict(X.loc[va])
+    assert len(fitted.calls_) == 1  # dự đoán trên validation không gọi sampler
+
+
+def test_pca_chi_fit_tren_train(df, splits):
+    tr, va = splits[("7:3", 0)]
+    X, y = df.drop(columns=TARGET), df[TARGET]
+    pipe = build_pipeline(GaussianNB(), "pca11", CFG, seed=0).fit(X.loc[tr], y.loc[tr])
+    pipe.predict(X.loc[va])  # dự đoán validation không được làm PCA fit lại
+    pca_in_pipe = pipe.named_steps["pca"]
+
+    prep = build_pipeline(GaussianNB(), "full", CFG)[:-1]
+    Z_tr = prep.fit_transform(X.loc[tr], y.loc[tr])
+    ref_train = PCA(n_components=11, random_state=0).fit(Z_tr)
+    np.testing.assert_allclose(pca_in_pipe.mean_, ref_train.mean_, atol=1e-9)
+    np.testing.assert_allclose(pca_in_pipe.explained_variance_, ref_train.explained_variance_)
+
+    both = pd.concat([X.loc[tr], X.loc[va]])
+    Z_all = build_pipeline(GaussianNB(), "full", CFG)[:-1].fit_transform(both, pd.concat([y.loc[tr], y.loc[va]]))
+    ref_all = PCA(n_components=11, random_state=0).fit(Z_all)
+    # scaler đã căn giữa nên mean_ ~ 0; phương sai giải thích mới phân biệt train với train+val
+    assert not np.allclose(pca_in_pipe.explained_variance_, ref_all.explained_variance_)

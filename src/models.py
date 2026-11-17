@@ -4,7 +4,7 @@ Dò siêu tham số: 5-fold CV có phân tầng trên train, tối ưu PR-AUC (c
 
 Phần dùng chung cho #13/#14/#20: `prefix_grid`, `tune`, `choose_threshold`, `score_function`,
 `build_pipeline`, `run_classification` (chạy 1 kịch bản, mặc định K1, cho 1 mô hình trên mọi tỉ lệ × dạng dữ liệu × seed;
-móc mở rộng: sampler, pipeline_factory, drop_cols, tune_subsample, scenario, thr_source).
+móc mở rộng: sampler, sampler_stage, pipeline_factory, drop_cols, tune_subsample, scenario, thr_source).
 Quy ước lưới: khóa có tiền tố tên bước, "model__<tham số>" (ví dụ "model__var_smoothing"); lưới trong
 config dùng khóa trần nên đi qua `prefix_grid` trước khi truyền vào `tune`/`run_classification`.
 """
@@ -132,24 +132,50 @@ def _drop_from_preprocessor(prep, drop_cols):
     return prep
 
 
-def build_pipeline(estimator, data_form, cfg, seed=0, sampler=None, drop_cols=()):
+def _filter_sampler_cols(smp, drop_cols):
+    """Bỏ tên cột trong `drop_cols` khỏi `categorical_features` của sampler (SMOTENC) nếu đó là list tên cột (str).
+
+    Sampler không có tham số `categorical_features`, hoặc giá trị là chỉ số/mask (không phải list tên) thì giữ nguyên.
+    """
+    if not drop_cols or not hasattr(smp, "get_params"):
+        return smp
+    cats = smp.get_params().get("categorical_features")
+    if isinstance(cats, (list, tuple)) and cats and all(isinstance(c, str) for c in cats):
+        drop = set(drop_cols)
+        smp.set_params(categorical_features=[c for c in cats if c not in drop])
+    return smp
+
+
+def build_pipeline(estimator, data_form, cfg, seed=0, sampler=None, drop_cols=(), sampler_stage="raw"):
     """Pipeline mới cho 1 lượt chạy: [sampler] -> build_preprocessor -> [PCA] -> ("model", estimator).
 
     data_form: "full" (33 chiều, 29 nếu cfg['use_derived']=False) hoặc "pca11" (PCA(cfg['n_components_reduced'],
     random_state=seed) trong pipeline, nên chỉ fit trên train / trên phần train của từng fold).
     sampler: None | đối tượng imblearn (được clone) | factory `callable(seed) -> sampler` (mỗi lượt một
     sampler mới có seed, vd `lambda seed: SMOTENC(categorical_features=PROFILE_CAT, random_state=seed)`).
-    Chèn làm bước ("sampler", ...) TRƯỚC preprocessor (dữ liệu thô); imblearn chỉ áp sampler lúc fit
-    nên validation/test không bị đụng, và trong CV sampler chỉ chạy trên phần train của từng fold.
+    Chèn làm bước ("sampler", ...); imblearn chỉ áp sampler lúc fit nên validation/test không bị đụng, và
+    trong CV sampler chỉ chạy trên phần train của từng fold.
+    sampler_stage: "raw" (mặc định) = TRƯỚC preprocessor, sampler thấy dữ liệu thô (DataFrame, cột có tên:
+    SMOTENC dùng `categorical_features` là tên cột). "processed" = SAU preprocessor (sau bước "scaler",
+    trước PCA/model), sampler thấy ma trận đã mã hóa + chuẩn hóa nên kNN không bị BILL_AMT/LIMIT_BAL lấn át.
+    Ở "processed" SMOTE/RandomOverSampler dùng được ngay; SMOTENC cần người dùng tự đưa chỉ số cột (đã
+    mã hóa) vào `categorical_features` (không có tên cột, và one-hot làm số cột đổi); không tự suy ra.
     drop_cols: cột bỏ khỏi bộ mã hóa (vd ("SEX",)); `run_classification` đồng thời bỏ cột khỏi X.
+    Với sampler_stage="raw", nếu sampler (sau khi gọi factory/clone) có `categorical_features` là list TÊN cột
+    thì các cột trong `drop_cols` được lọc khỏi list đó (tránh lỗi SMOTENC khi cột đã bị bỏ khỏi X).
     """
+    if sampler_stage not in ("raw", "processed"):
+        raise ValueError(f"sampler_stage không hợp lệ: {sampler_stage!r} (chọn 'raw' hoặc 'processed')")
     prep = build_preprocessor(use_derived=cfg["use_derived"])
     if drop_cols:
         prep = _drop_from_preprocessor(prep, drop_cols)
     steps = list(prep.steps)
     smp = _make_sampler(sampler, seed)
     if smp is not None:
-        steps.insert(0, ("sampler", smp))
+        if sampler_stage == "raw":
+            steps.insert(0, ("sampler", _filter_sampler_cols(smp, drop_cols)))
+        else:
+            steps.append(("sampler", smp))  # sau "scaler" (bước cuối của preprocessor), trước PCA/model
     if data_form == "pca11":
         steps.append(("pca", PCA(n_components=cfg["n_components_reduced"], random_state=seed)))
     elif data_form != "full":
@@ -159,7 +185,7 @@ def build_pipeline(estimator, data_form, cfg, seed=0, sampler=None, drop_cols=()
 
 
 def _drop_logged(path, keys: dict):
-    """Xóa khỏi results.csv các dòng khớp mọi cặp (cột, giá trị) trong `keys` (so sánh chuỗi); thiếu file thì bỏ qua."""
+    """Xóa khỏi file kết quả các dòng khớp mọi cặp (cột, giá trị) trong `keys` (so sánh chuỗi); thiếu file thì bỏ qua."""
     if not path.exists() or path.stat().st_size == 0:
         return
     old = pd.read_csv(path, dtype=str, keep_default_na=False, encoding="utf-8")
@@ -174,7 +200,7 @@ def run_classification(model_name, make_model, grid, cfg, df, splits, data_forms
                        ratios=None, seeds=None, score_kind="auto", balancing="B0_none",
                        replace=True, path=None, searches=None, n_jobs=-1, verbose=True,
                        sampler=None, pipeline_factory=None, drop_cols=(), tune_subsample=None,
-                       scenario="K1", thr_source="val"):
+                       scenario="K1", thr_source="val", sampler_stage="raw"):
     """Chạy 1 kịch bản cho 1 mô hình: mọi (tỉ lệ, dạng dữ liệu, seed) -> dò lưới -> metric train/val -> log_result.
 
     DÙNG CHUNG cho NB, Logistic, SVM, B0/B1/B2, FAMD, fairness. Tham số:
@@ -185,25 +211,30 @@ def run_classification(model_name, make_model, grid, cfg, df, splits, data_forms
     - `score_kind`: xem `score_function`. "auto" -> predict_proba nếu có (NB, Logistic; ngưỡng 0.5), ngược
       lại decision_function (SVC mặc định, ngưỡng 0). Platt: dùng `SVC(probability=True)` để có predict_proba.
       Cột `val_opt_*` là metric trên validation tại ngưỡng F1 tối ưu `thr_f1` (xem `thr_source`).
-    - `balancing`: CHỈ LÀ NHÃN ghi vào cột, KHÔNG tự đổi cách cân bằng. Cân bằng thật làm qua:
-      B1 -> `make_model=lambda: build_logistic(class_weight="balanced")`;
+    - `balancing`: nhãn ghi vào cột, KHÔNG tự đổi cách cân bằng. Cân bằng thật làm qua:
+      B1 -> `make_model=lambda: build_logistic(class_weight="balanced")` (nằm trong `make_model`, hàm này
+      không kiểm tra được nên không có ràng buộc nào cho "B1*");
       B2 -> `sampler=lambda seed: SMOTENC(categorical_features=PROFILE_CAT, random_state=seed)`
       (xem `build_pipeline`); B0 là mặc định (không làm gì).
-    - `sampler`: None | sampler | factory(seed), chèn trước preprocessor (chỉ fit lúc train, không đụng validation).
+      Nhãn bắt đầu bằng "B2" mà không có `sampler` lẫn `pipeline_factory` -> ValueError (tránh ghi nhãn sai).
+    - `sampler`: None | sampler | factory(seed), chèn vào pipeline (chỉ fit lúc train, không đụng validation).
+    - `sampler_stage`: "raw" (mặc định, trước preprocessor) | "processed" (sau scaler, trước PCA/model);
+      xem `build_pipeline`. Móc để có thể chuẩn hóa trước khi sampler (SMOTE/RandomOverSampler).
     - `pipeline_factory`: callable(est, data_form, cfg, seed) -> Pipeline, thay hoàn toàn `build_pipeline`
-      (cho FAMD-11, pipeline không SEX, ... mà không sửa mã dùng chung). Khi đó `sampler` bị bỏ qua và
-      factory tự xử lý sampler/cột.
+      (cho FAMD-11, pipeline không SEX, ... mà không sửa mã dùng chung). Khi đó truyền `sampler` hoặc
+      `sampler_stage` != "raw" -> ValueError (factory tự đặt sampler vào pipeline của nó). `drop_cols` vẫn bỏ
+      cột khỏi X (factory KHÔNG được nhắc tới các cột đó) nhưng không được truyền vào factory.
     - `drop_cols`: cột bỏ khỏi X trước pipeline (vd ("SEX",) cho K7); với `build_pipeline` mặc định
-      bộ mã hóa cũng được bỏ cột đó.
+      bộ mã hóa cũng được bỏ cột đó và `categorical_features` (list tên) của sampler được lọc theo.
     - `tune_subsample`: int; dò lưới trên mẫu con PHÂN TẦNG của train (train_test_split, random_state=seed)
       rồi fit lại pipeline MỚI với best_params_ trên TOÀN train. Nếu None mà `grid` có khóa "grid_subsample"
       (SVM, lấy từ config qua `prefix_grid(..., keep_subsample=True)`) thì dùng giá trị đó; khóa này luôn bị
       tách khỏi lưới. Cột `tune_subsample` ghi cỡ mẫu con (0 = không dùng); `cv_pr_auc` khi đó là của
       mẫu con và `searches[...]` là GridSearchCV trên mẫu con.
     - `scenario`: nhãn kịch bản ("K1", "K7", ...), là cột và NẰM TRONG khóa thay thế.
-    - `thr_source`: "val" (mặc định, plan 4.4: chọn ngưỡng F1 trên validation => `val_opt` lạc quan) hoặc
-      "oof" (chọn trên dự đoán out-of-fold của train, cùng CV với dò lưới => `val_opt` không nhìn nhãn
-      validation). Ghi vào cột `thr_source`.
+    - `thr_source`: "val" (mặc định, plan 4.4: chọn ngưỡng F1 trên CHÍNH validation dùng để báo cáo =>
+      `val_opt_*` LẠC QUAN) hoặc "oof" (chọn trên dự đoán out-of-fold của train, cùng CV với dò lưới =>
+      `val_opt_*` không nhìn nhãn validation). Nên dùng "oof" cho bảng so sánh cuối cùng. Ghi vào cột `thr_source`.
     - `replace=True`: xóa trước dòng cũ cùng (model, ratio, data_form, balancing, derived, seed, scenario).
     - `path`: mặc định `results/results_<model_name>.csv` (mỗi mô hình một file để tránh xung đột git);
       gộp để phân tích bằng `src.metrics.load_results`.
@@ -213,6 +244,12 @@ def run_classification(model_name, make_model, grid, cfg, df, splits, data_forms
     """
     if thr_source not in ("val", "oof"):
         raise ValueError(f"thr_source không hợp lệ: {thr_source!r}")
+    if str(balancing).startswith("B2") and sampler is None and pipeline_factory is None:
+        raise ValueError(f"balancing={balancing!r} (B2) cần `sampler` hoặc `pipeline_factory`; "
+                         "nếu không nhãn B2 sẽ ghi sai vào CSV mà không cân bằng gì")
+    if pipeline_factory is not None and (sampler is not None or sampler_stage != "raw"):
+        raise ValueError("`pipeline_factory` không dùng chung với `sampler`/`sampler_stage`: "
+                         "hãy đặt sampler bên trong pipeline do factory tạo")
     grid = dict(grid)
     cfg_sub = grid.pop("grid_subsample", None)
     if tune_subsample is None and cfg_sub is not None:
@@ -232,7 +269,8 @@ def run_classification(model_name, make_model, grid, cfg, df, splits, data_forms
                 if pipeline_factory is not None:
                     pipe = pipeline_factory(make_model(), form, cfg, seed)
                 else:
-                    pipe = build_pipeline(make_model(), form, cfg, seed, sampler=sampler, drop_cols=drop_cols)
+                    pipe = build_pipeline(make_model(), form, cfg, seed, sampler=sampler, drop_cols=drop_cols,
+                                          sampler_stage=sampler_stage)
                 t0 = time.perf_counter()
                 n_sub = 0
                 if tune_subsample is not None and tune_subsample < len(X_tr):
