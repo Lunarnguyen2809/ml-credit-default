@@ -1,6 +1,6 @@
 """Giảm chiều và trực quan hóa (mục 4.2). Mọi phương pháp fit trên train, validation chỉ transform.
 
-Gồm PCA (#10) và FAMD (#11). Các hàm vẽ/đo dùng chung nhận ma trận tọa độ `Z` (n mẫu x k thành phần)
+Gồm PCA (#10), FAMD (#11), bảng so sánh và t-SNE (#12). Các hàm vẽ/đo dùng chung nhận ma trận tọa độ `Z` (n mẫu x k thành phần)
 nên áp dụng được cho cả hai. Hàm vẽ lưu PNG (mặc định vào `results/figures/`), đóng figure sau khi lưu
 và trả về đường dẫn; không đặt backend matplotlib. Hàm bảng trả về DataFrame.
 
@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import prince
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.metrics import roc_auc_score
 
 from src.data import DERIVED_COLS, MONEY_COLS, PAY_AMT, PAY_STATUS, PROFILE_CAT
@@ -355,6 +356,86 @@ def plot_default_rate_by_component(Z, y, n_components, path, q: int = 10) -> Pat
     return save_fig(fig, path)
 
 
-def plot_tsne(X, y, path, seed=0):
-    """TODO(#12): t-SNE 2 chiều chỉ để trực quan hóa, không dùng làm đầu vào mô hình."""
-    raise NotImplementedError
+
+
+def plot_tsne(X, y, path, seed: int = 0, max_points: int = 5000, pca_dims: int | None = 30,
+              perplexity: float = 30.0, title: str = "t-SNE 2 chiều") -> Path:
+    """t-SNE 2 chiều, màu theo nhãn. CHỈ ĐỂ TRỰC QUAN HÓA, KHÔNG phải đầu vào của mô hình.
+
+    t-SNE không có phép `transform` cho dữ liệu mới và khoảng cách/kích thước cụm trên hình không có
+    nghĩa định lượng, nên không dùng để huấn luyện hay đánh giá; hàm không trả về tọa độ.
+    `X` (n x d) và `y` cùng thứ tự dòng (ví dụ cùng là train). Chỉ lấy ngẫu nhiên `max_points` dòng
+    (seed cố định) cho nhanh. Nếu d > `pca_dims` thì giảm xuống `pca_dims` chiều bằng PCA trước
+    (cách làm thông dụng, khử nhiễu và tăng tốc); `pca_dims=None` để tắt. `init="pca"`, `random_state=seed`.
+    """
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y)
+    idx = _sample_idx(len(X), max_points, seed)
+    Xs, ys = X[idx], y[idx]
+    if pca_dims is not None and Xs.shape[1] > pca_dims:
+        Xs = PCA(n_components=pca_dims, random_state=seed).fit_transform(Xs)
+    perp = min(perplexity, max(1.0, (len(Xs) - 1) / 3))  # sklearn đòi perplexity < số mẫu
+    emb = TSNE(n_components=2, perplexity=perp, init="pca", random_state=seed).fit_transform(Xs)
+    fig, ax = plt.subplots(figsize=(6.5, 6))
+    for lab, name in ((0, "Không vỡ nợ"), (1, "Vỡ nợ")):
+        m = ys == lab
+        ax.scatter(emb[m, 0], emb[m, 1], s=5, alpha=0.4, color=COLORS[lab], linewidths=0,
+                   rasterized=True, label=f"{name} ({m.sum()})")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.legend(loc="upper right", fontsize=8, markerscale=3)
+    ax.set_title(f"{title}\n{len(idx)} điểm, chỉ để trực quan hóa", fontsize=10)
+    return save_fig(fig, path, dpi=90)
+
+
+# ---------------------------------------------------------------- so sánh PCA và FAMD (#12)
+
+def compare_reductions(df_train, y_train, df_val, y_val, k: int = 11, seed: int = 0,
+                       return_coords: bool = False):
+    """Bảng so sánh PCA và FAMD tại `k` thành phần (mỗi phương pháp một dòng). Fit CHỈ trên train.
+
+    `df_*` là dữ liệu sau `add_derived_features`. Cột:
+    - `cum_var_k`, `n_for_80%`, `n_for_90%`: giải thích (PCA: phương sai trên 33 chiều đã one-hot; FAMD: quán
+      tính trên 30 chiều hỗn hợp, nên hai thang đo không hoàn toàn cùng loại).
+    - `auc_abs_max`, `auc_abs_mean`: ROC-AUC đơn biến (không phụ thuộc dấu) của từng thành phần trong `k`
+      thành phần đầu, tính trên validation; `best_comp` là thành phần đạt max.
+    - `lr_roc_auc`, `lr_pr_auc`: LogisticRegression (mặc định) fit trên `k` thành phần của train,
+      chấm trên validation qua `src.metrics.classification_metrics`.
+    - `top_block_1..3`, `top_share_1..3`: khối chi phối ba thành phần đầu (tỉ trọng loading^2, `block_strength`).
+    - `second_block_1..3`, `second_share_1..3`: khối đứng thứ hai ở cùng ba thành phần (để thấy khi nào
+      hai khối gần ngang nhau, tránh kết luận "khối X chi phối" quá chắc).
+    `return_coords=True` trả thêm {tên: (Z_train, Z_val)} (đủ mọi thành phần đã fit) để vẽ t-SNE.
+    """
+    from sklearn.linear_model import LogisticRegression
+    from src.metrics import classification_metrics
+
+    y_train, y_val = np.asarray(y_train), np.asarray(y_val)
+    _, X_tr, X_va = pca_input(df_train, df_val)
+    pca = fit_pca(X_tr, seed=seed)
+    famd = fit_famd(df_train, seed=seed)
+    fits = {
+        "PCA": (pca, pca.transform(X_tr), pca.transform(X_va), get_loadings(pca, X_tr.columns)),
+        "FAMD": (famd, famd_transform(famd, df_train).to_numpy(), famd_transform(famd, df_val).to_numpy(),
+                 get_loadings(famd)),
+    }
+    rows, coords = [], {}
+    for name, (model, Ztr, Zva, load) in fits.items():
+        ratio = explained_ratio(model)
+        row = {"method": name, "k": k, **explained_summary(ratio, k)}
+        row["cum_var_k"] = row.pop(f"cum_at_{k}")
+        auc = component_vs_label(Zva, y_val, k)["auc_abs"]
+        row.update(auc_abs_max=float(auc.max()), best_comp=int(auc.idxmax()), auc_abs_mean=float(auc.mean()))
+        clf = LogisticRegression(max_iter=1000).fit(Ztr[:, :k], y_train)
+        m = classification_metrics(y_val, clf.predict_proba(Zva[:, :k])[:, 1])
+        row.update(lr_roc_auc=m["roc_auc"], lr_pr_auc=m["pr_auc"])
+        bs = block_strength(load, 3)
+        for c in range(3):
+            row[f"top_block_{c + 1}"] = bs.iloc[:, c].idxmax()
+            row[f"top_share_{c + 1}"] = float(bs.iloc[:, c].max())
+            order = bs.iloc[:, c].sort_values(ascending=False)
+            row[f"second_block_{c + 1}"] = order.index[1]
+            row[f"second_share_{c + 1}"] = float(order.iloc[1])
+        rows.append(row)
+        coords[name] = (Ztr, Zva)
+    table = pd.DataFrame(rows).set_index("method")
+    return (table, coords) if return_coords else table

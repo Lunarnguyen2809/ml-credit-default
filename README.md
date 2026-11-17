@@ -61,18 +61,18 @@ src/
   data.py                 đọc dữ liệu gốc, thống kê sơ bộ (summarize, label_distribution)
   preprocess.py           làm sạch (clean, negative_bill_ratio), đặc trưng dẫn xuất, chia dữ liệu, pipeline mã hóa/scale
   eda.py                  thống kê và biểu đồ EDA trên dữ liệu đã làm sạch (describe_numeric, default_rate_by, make_all_figures, ...)
-  reduce.py               PCA (#10), FAMD (#11) và hàm vẽ/đo dùng chung; t-SNE (#12) chưa làm
+  reduce.py               PCA (#10), FAMD (#11), hàm vẽ/đo dùng chung, bảng so sánh PCA–FAMD (`compare_reductions`) và `plot_tsne` (#12)
   cluster.py              GMM, K-Means: chọn k (k_stability: BIC + ARI giữa các seed), kiểm tra suy biến GMM, chỉ số chất lượng, quan hệ cụm - nhãn, hồ sơ cụm, hình, lưu/nạp mô hình (#21)
   models.py               Naive Bayes, Logistic Regression, SVM RBF
   metrics.py              hàm tính metric và ghi results.csv
   score_reg.py            mục 2.4(c): hồi quy trên score
   two_stage.py            mô-đun mở rộng 2 tầng (tùy chọn)
-notebooks/                01_preprocess, 02_eda, 02_reduce, 04_cluster ... 06_two_stage, mỗi notebook gọi hàm trong src/
+notebooks/                01_preprocess, 02_eda, 02_reduce, 02c_compare_reduce, 04_cluster ... 06_two_stage, mỗi notebook gọi hàm trong src/
 results/
   results.csv             mỗi lần chạy 1 dòng (src/metrics.log_result): các trường định danh
                           + `timestamp`, `params` (JSON), `train_<metric>`, `val_<metric>`;
                           cột mới tự được thêm
-  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA"; 10 hình PCA/FAMD `pca_*.png`, `famd_*.png` do `notebooks/02_reduce.ipynb` sinh ra; 6 hình `cluster_*.png` do `notebooks/04_cluster.ipynb` sinh ra)
+  figures/                hình cho báo cáo (7 hình EDA do src/eda.py sinh ra, xem mục "Vẽ lại hình EDA"; 10 hình PCA/FAMD `pca_*.png`, `famd_*.png` do `notebooks/02_reduce.ipynb` sinh ra; 3 hình `tsne_*.png` và bảng `results/reduce_compare.csv` do `notebooks/02c_compare_reduce.ipynb` sinh ra; 6 hình `cluster_*.png` do `notebooks/04_cluster.ipynb` sinh ra)
 scripts/create_issues.sh  tạo label, milestone và issue trên GitHub
 tests/                    pytest cho hàm dùng chung trong src/ (dữ liệu giả lập)
 .github/workflows/        CI: chạy pytest mỗi lần push / pull request
@@ -135,8 +135,8 @@ Mỗi file `.npz` có `train_idx`, `val_idx` là **nhãn index** của `y` (khô
 ### Ghép kịch bản với notebook
 
 Chạy từng kịch bản bằng notebook tương ứng trong `notebooks/`.
-Hiện đã có `01_preprocess`, `02_eda`, `02_reduce` (mới PCA, FAMD) và `04_cluster`; các notebook còn lại **CHƯA ĐƯỢC TẠO**.
-Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, `02_reduce`,
+Hiện đã có `01_preprocess`, `02_eda`, `02_reduce` (PCA, FAMD), `02c_compare_reduce` (so sánh PCA–FAMD, t-SNE) và `04_cluster`; các notebook còn lại **CHƯA ĐƯỢC TẠO**.
+Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, `02_reduce`, `02c_compare_reduce`,
 `03_classify`, `04_cluster`, `05_score_reg` là tên đề xuất, nhóm chốt lại
 (`02_reduce` đang trùng số với `02_eda`).
 
@@ -144,7 +144,8 @@ Tên `01_preprocess` và `06_two_stage` lấy từ kế hoạch; tên `02_eda`, 
 | --- | --- |
 | `01_preprocess` | làm sạch, đặc trưng dẫn xuất, chia dữ liệu |
 | `02_eda` | EDA: thống kê từng trường, tương quan, 7 hình trong `results/figures/` |
-| `02_reduce` | PCA, FAMD (xong, 10 hình `pca_*`, `famd_*`); t-SNE chưa làm (#12) |
+| `02_reduce` | PCA, FAMD (xong, 10 hình `pca_*`, `famd_*`) |
+| `02c_compare_reduce` | #12: bảng so sánh PCA–FAMD tại 11 thành phần (`results/reduce_compare.csv`), t-SNE 2 chiều chỉ để nhìn (3 hình `tsne_*`) |
 | `03_classify` | K1, K1b (mục 2.4b), K2, K3, K4, K7 |
 | `04_cluster` | K6 (xong, 6 hình `cluster_*`; lưu mô hình vào `data/models/`) |
 | `05_score_reg` | K5 |
