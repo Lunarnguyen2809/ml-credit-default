@@ -7,45 +7,57 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from imblearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
 from src.config import DATA_DIR
-from src.data import DERIVED_COLS, PAY_STATUS  # noqa: F401  (DERIVED_COLS re-export cho nơi khác)
+from src.data import BILL_AMT, DERIVED_COLS, MONEY_COLS, PAY_STATUS, PROFILE_CAT
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
-    """Làm sạch theo bảng 2.2.
+    """Làm sạch theo bảng 2.2; trả về bản sao, không sửa df đầu vào.
 
-    TODO(#4):
-    - EDUCATION: gộp 0, 5, 6 vào 4 ("khác"); in ra số mẫu bị gộp
+    - EDUCATION: gộp 0, 5, 6 vào 4 ("khác")
     - MARRIAGE: gộp 0 vào 3 ("khác")
-    - loại bản ghi trùng hoàn toàn; in ra số dòng bị loại
+    - loại bản ghi trùng hoàn toàn (giữ bản đầu tiên)
+
+    In ra số mẫu bị gộp (theo từng giá trị gốc) và số dòng trùng bị loại.
+
+    Thứ tự: gộp nhãn TRƯỚC, loại trùng SAU. Gộp nhãn có thể làm các dòng vốn chỉ khác
+    nhau ở giá trị hiếm (vd EDUCATION 5 và 6) trở nên giống hệt nhau, nên loại
+    trùng được làm sau khi gộp phòng trường hợp gộp nhãn tạo thêm bản trùng (trên
+    dữ liệu này số trùng trước/sau gộp đều là 35). Nhờ vậy hàm cũng lũy đẳng:
+    clean(clean(df)) == clean(df).
+
+    index KHÔNG reset sau khi loại trùng — giữ số dòng gốc (0..29999, có lỗ hổng)
+    để truy vết; bước chia dữ liệu (#6) phải lưu nhãn `.index` và truy cập bằng
+    `.loc`, không dùng vị trí `.iloc`.
     """
     out = df.copy()
-    
-    # Đổi tên PAY_0 thành PAY_1 nếu tồn tại và loại bỏ ID nếu có
-    if "PAY_0" in out.columns:
-        out = out.rename(columns={"PAY_0": "PAY_1"})
-    if "ID" in out.columns:
-        out = out.drop(columns=["ID"])
 
-    # Xử lý EDUCATION (gộp 0, 5, 6 vào 4)
-    edu_mask = out["EDUCATION"].isin([0, 5, 6])
-    print(f"Số mẫu EDUCATION bị gộp (0, 5, 6 -> 4): {edu_mask.sum()}")
-    out.loc[edu_mask, "EDUCATION"] = 4
+    for col, old_vals, new_val in (("EDUCATION", (0, 5, 6), 4), ("MARRIAGE", (0,), 3)):
+        for v in old_vals:
+            n = int((out[col] == v).sum())
+            print(f"{col} = {v} -> {new_val}: {n} mẫu")
+        out[col] = out[col].replace(list(old_vals), new_val)
 
-    # Xử lý MARRIAGE (gộp 0 vào 3)
-    mar_mask = out["MARRIAGE"] == 0
-    print(f"Số mẫu MARRIAGE bị gộp (0 -> 3): {mar_mask.sum()}")
-    out.loc[mar_mask, "MARRIAGE"] = 3
-
-    # Loại bỏ bản ghi trùng lặp hoàn toàn
     n_before = len(out)
-    out = out.drop_duplicates()
-    n_dropped = n_before - len(out)
-    print(f"Số dòng trùng lặp bị loại bỏ: {n_dropped}")
-
+    out = out.drop_duplicates(keep="first")
+    print(f"Loại bản ghi trùng hoàn toàn: {n_before - len(out)} dòng (còn {len(out)})")
     return out
+
+
+def negative_bill_ratio(df: pd.DataFrame) -> pd.DataFrame:
+    """Tỉ lệ dòng có sao kê âm: BILL_AMT1..6 < 0 theo từng cột, và 'any_of_6'.
+
+    Trả về DataFrame index = tên cột, cột 'count' và 'ratio'.
+    """
+    neg = df[BILL_AMT] < 0
+    neg["any_of_6"] = neg.any(axis=1)
+    count = neg.sum()
+    return pd.DataFrame({"count": count, "ratio": count / len(df)})
 
 
 def add_derived_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -140,35 +152,29 @@ def load_splits(seeds, ratios: dict, in_dir=DATA_DIR / "splits") -> dict:
     return splits
 
 
-def build_preprocessor(use_derived: bool = True):
-    """ColumnTransformer: one-hot cho SEX/EDUCATION/MARRIAGE, giữ PAY_x thứ bậc,
-    signed_log cho cột tiền, rồi StandardScaler. Kết quả phải ra 33 chiều (29 nếu use_derived=False).
+def build_preprocessor(use_derived: bool = True) -> Pipeline:
+    """Pipeline (imblearn) mã hóa + log + scale (mục 4.1, bước 6-7); fit CHỈ trên train.
 
-    TODO(#7). Gói vào imblearn.pipeline.Pipeline để có thể chèn SMOTENC ở bước sau.
+    Bước 1, ColumnTransformer:
+    - one-hot SEX/EDUCATION/MARRIAGE (2 + 4 + 3 = 9 cột; sau clean() EDUCATION chỉ còn 1..4,
+      MARRIAGE 1..3). `handle_unknown="ignore"`: nhãn lạ ở validation thành vector 0, không lỗi.
+    - signed_log cho `MONEY_COLS` (13 cột tiền: LIMIT_BAL, BILL_AMT1..6, PAY_AMT1..6)
+    - AGE, PAY_1..PAY_6 (giữ dạng số thứ bậc) và, nếu `use_derived`, `DERIVED_COLS` đi thẳng qua
+    Bước 2, StandardScaler trên toàn bộ cột (kể cả one-hot) -> trung bình 0, độ lệch chuẩn 1 trên train.
+
+    Đầu ra 33 chiều (29 nếu `use_derived=False`; khi đó df đầu vào không cần có cột dẫn xuất).
+    Thứ tự cột: one-hot, tiền (log), AGE, PAY_1..6, [dẫn xuất]. `get_feature_names_out()` trả về
+    tên cột theo đúng thứ tự (vd "SEX_1", "LIMIT_BAL", "PAY_1", "UTIL_RATIO"), dùng cho PCA loadings.
+
+    Dùng `imblearn.pipeline.Pipeline` để sau này chèn SMOTENC/SMOTE (chỉ chạy lúc fit) trong từng fold CV.
     """
-    cat_cols = ["SEX", "EDUCATION", "MARRIAGE"]
-    log_cols = [
-        "LIMIT_BAL",
-        "BILL_AMT1", "BILL_AMT2", "BILL_AMT3", "BILL_AMT4", "BILL_AMT5", "BILL_AMT6",
-        "PAY_AMT1", "PAY_AMT2", "PAY_AMT3", "PAY_AMT4", "PAY_AMT5", "PAY_AMT6"
-    ]
-    passthrough_cols = ["AGE"] + list(PAY_STATUS)
-
-    if use_derived:
-        passthrough_cols = passthrough_cols + list(DERIVED_COLS)
-
-    preprocessor = ColumnTransformer(
+    passthrough_cols = ["AGE"] + PAY_STATUS + (DERIVED_COLS if use_derived else [])
+    column_transformer = ColumnTransformer(
         transformers=[
-            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), cat_cols),
-            ("log", FunctionTransformer(signed_log, validate=False), log_cols),
+            ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), PROFILE_CAT),
+            ("log", FunctionTransformer(signed_log, feature_names_out="one-to-one"), MONEY_COLS),
             ("pass", "passthrough", passthrough_cols),
-        ]
+        ],
+        verbose_feature_names_out=False,  # tên cột gốc, không tiền tố "cat__"; không trùng giữa các khối
     )
-
-    # Gói vào imblearn Pipeline kèm StandardScaler ở cuối
-    pipeline = Pipeline([
-        ("preprocessor", preprocessor),
-        ("scaler", StandardScaler())
-    ])
-    
-    return pipeline
+    return Pipeline([("columns", column_transformer), ("scaler", StandardScaler())])

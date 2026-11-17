@@ -301,7 +301,7 @@ Mọi thí nghiệm dùng chung một pipeline, cùng phân hoạch dữ liệu 
 - **Seed cố định:** 5 seed {0, 1, 2, 3, 4}; mỗi seed sinh một phân hoạch cho mỗi tỉ lệ chia. Mọi mô hình dùng chung phân hoạch đó.
 - **Phân tầng:** chia theo nhãn; với mô-đun 2 tầng, phân tầng theo (cụm × nhãn).
 - **Pipeline:** sklearn.Pipeline gói làm sạch → mã hóa → scale → giảm chiều → mô hình, để không bước nào fit nhầm trên validation.
-- **Lưu kết quả:** mỗi lần chạy ghi 1 dòng vào results.csv (mô hình, tỉ lệ, dạng dữ liệu, seed, siêu tham số, metric train, metric validation, thời gian huấn luyện).
+- **Lưu kết quả:** mỗi lần chạy ghi 1 dòng vào `results/results_<model>.csv` (mỗi mô hình 1 file, gộp bằng `metrics.load_results()`) gồm: mô hình, tỉ lệ, dạng dữ liệu, seed, siêu tham số, metric train, metric validation, thời gian huấn luyện.
 - **Báo cáo:** trung bình ± độ lệch chuẩn qua 5 seed, không báo cáo 1 lần chạy.
 
 ### 6.2. Metric
@@ -344,7 +344,7 @@ Mỗi thành viên sở hữu trọn một họ mô hình từ đầu đến cu�
 | Thành viên | GitHub | Mô hình sở hữu | Issue |
 | :-: | :-: | :-: | :-: |
 | TV1 | Lunarnguyen2809 | Gaussian Naïve Bayes | #3 đọc dữ liệu, #4 làm sạch, #8 EDA, #10 PCA, #11 FAMD, #13 Naive Bayes, #21 phân cụm |
-| TV2 | synaamin | Logistic Regression | #5 đặc trưng dẫn xuất, #6 chia dữ liệu, #9 metric và results.csv, #12 so sánh PCA–FAMD và t-SNE, #14 Logistic, #15 B0/B1/B2, #23 hồi quy trên score |
+| TV2 | synaamin | Logistic Regression | #5 đặc trưng dẫn xuất, #6 chia dữ liệu, #9 metric và results_<model>.csv, #12 so sánh PCA–FAMD và t-SNE, #14 Logistic, #15 B0/B1/B2, #23 hồi quy trên score |
 | TV3 | QuynhRua | SVM RBF | #7 pipeline mã hóa/log/scale, #16 có/không đặc trưng dẫn xuất, #20 SVM, #22 mục 2.4(b), #24 phân loại đối chứng FAMD, #25 đánh giá công bằng, chủ trì tài liệu giữa kỳ #17 báo cáo, #18 slide, #19 README và kiểm tra tái lập |
 | Cả nhóm | — | — | #2, #28–#30: tài liệu; ai làm phần nào viết mục đó trong báo cáo (kể cả báo cáo giữa kỳ #17) |
 
@@ -395,7 +395,7 @@ ml-credit-default/
 │   ├── score_reg.py    # 2.4(c)
 │   └── two_stage.py    # mô-đun mở rộng
 ├── notebooks/          # 01_preprocess … 06_two_stage
-└── results/            # results.csv, hình
+└── results/            # results_<model>.csv (mỗi mô hình 1 file), hình
 ```
 
 Không đưa file dữ liệu vào repo (đề cấm gửi kèm dữ liệu); README.txt ghi link UCI và lệnh tải.

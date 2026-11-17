@@ -1,5 +1,7 @@
-"""Metric dùng chung và ghi results.csv (mục 6.1, 6.2).
+"""Metric dùng chung, ghi kết quả (`log_result`) và gộp kết quả (`load_results`) (mục 6.1, 6.2).
 
+Kết quả lưu mỗi mô hình một file `results/results_<model>.csv` (do `run_classification` chọn đường dẫn, tránh
+xung đột git); `load_results` gộp mọi file `results*.csv` thành 1 DataFrame.
 Mỗi lần chạy ghi 1 dòng gồm: model, ratio, data_form, balancing, derived, seed,
 params, metric train, metric validation, train_time_s (cộng thêm timestamp do log_result tự sinh).
 Metric train/val truyền dưới dạng dict lồng, ví dụ train={...}, val={...} ->
@@ -27,6 +29,8 @@ from sklearn.metrics import (
 
 from src.config import RESULTS_DIR
 
+# Đường dẫn mặc định CŨ (một file chung) của `log_result` khi không truyền `path`; giữ để tương thích ngược.
+# Luồng hiện tại ghi `results/results_<model>.csv` (xem `run_classification`) và đọc bằng `load_results`.
 RESULTS_CSV = RESULTS_DIR / "results.csv"
 
 
@@ -87,7 +91,7 @@ def _flatten_row(row: dict) -> dict:
 
 
 def log_result(row: dict, path=RESULTS_CSV) -> None:
-    """Nối 1 dòng vào results.csv, tạo file (và thư mục cha) kèm header nếu chưa có.
+    """Nối 1 dòng vào file CSV `path` (mặc định RESULTS_CSV = results/results.csv, đường dẫn cũ), tạo file (và thư mục cha) kèm header nếu chưa có.
 
     - Tự thêm cột `timestamp` (ISO, đến giây).
     - dict metric lồng nhau (train={...}, val={...}) được làm phẳng thành train_pr_auc,
@@ -117,3 +121,14 @@ def log_result(row: dict, path=RESULTS_CSV) -> None:
         new = pd.concat([old, new], ignore_index=True)  # cột cũ trước, cột mới nối sau
         new = new.fillna("")
     new.to_csv(path, index=False, encoding="utf-8")
+
+
+def load_results(pattern="results*.csv", results_dir=RESULTS_DIR) -> pd.DataFrame:
+    """Gộp mọi file `results_dir/pattern` (mặc định results/results*.csv, mỗi mô hình một file) thành 1 DataFrame.
+
+    Cột thiếu ở file này được điền NaN. Không có file nào -> DataFrame rỗng.
+    """
+    files = sorted(Path(results_dir).glob(pattern))
+    if not files:
+        return pd.DataFrame()
+    return pd.concat([pd.read_csv(f, encoding="utf-8") for f in files], ignore_index=True)

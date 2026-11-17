@@ -33,3 +33,22 @@ def load_raw(path: Path = RAW_FILE) -> pd.DataFrame:
     df = pd.read_excel(path, header=1)
     df = df.rename(columns={"PAY_0": "PAY_1", "default payment next month": TARGET})
     return df.drop(columns=["ID"])
+
+
+def summarize(df: pd.DataFrame) -> pd.DataFrame:
+    """Thống kê sơ bộ theo cột: dtype, số giá trị khác nhau, số missing, min, max."""
+    return pd.DataFrame(
+        {
+            "dtype": df.dtypes.astype(str),
+            "n_unique": df.nunique(dropna=True),
+            "n_missing": df.isna().sum(),
+            "min": df.min(numeric_only=False),
+            "max": df.max(numeric_only=False),
+        }
+    )
+
+
+def label_distribution(df: pd.DataFrame, target: str = TARGET) -> pd.DataFrame:
+    """Phân phối nhãn: số lượng (count) và tỉ lệ (ratio) của từng lớp."""
+    counts = df[target].value_counts().sort_index()
+    return pd.DataFrame({"count": counts, "ratio": counts / counts.sum()})
